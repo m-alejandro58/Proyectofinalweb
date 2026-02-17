@@ -1,0 +1,386 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// FINANCIAL MODULE
+// ---------------------------------------------------------
+
+model FinancialAccount {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // CASH, BANK, CREDIT, RECEIVABLE (Sistecredito), LOAN
+  
+  // For Assets (Cash, Bank, Receivable): Positive value = Money I have/Pending
+  // For Liabilities (Credit, Loan): Negative value = Debt
+  balance     Float    @default(0) 
+  
+  creditLimit Float?   @default(0) // Only for CREDIT cards
+  
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  transactions     Transaction[]     // Money movements (Transfer, Adjustments)
+  purchases        Purchase[]        // Paid from this account
+  deposits         Sale[]            // Money received into this account
+  expenses         Expense[]         // Expenses paid from this account
+  refunds          Return[]          // Refunds paid from this account
+  deferredPayments DeferredPayment[] // SisteCredito pending payments
+  orderPayments    OrderPayment[]    // Payments for customer orders
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  category    String   // Luz, Arriendo, Impuestos, Nomina, Transporte
+  date        DateTime @default(now())
+  
+  // Optional: Pay from account
+  financialAccount   FinancialAccount? @relation(fields: [financialAccountId], references: [id])
+  financialAccountId String?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Transaction {
+  // General money movements (Transfer between accounts, Adjustments)
+  id          String   @id @default(uuid())
+  description String
+  amount      Float
+  date        DateTime @default(now())
+  
+  fromAccount   FinancialAccount? @relation(fields: [fromAccountId], references: [id])
+  fromAccountId String?
+}
+
+// ---------------------------------------------------------
+// CONTACTS & CRM
+// ---------------------------------------------------------
+
+model Contact {
+  id          String   @id @default(uuid())
+  name        String
+  type        String   // CLIENT, PROVIDER
+  govId       String?  // Cedula or NIT (Unique Identifier)
+  
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  department  String?
+  
+  notes       String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  purchases      Purchase[]      // As Provider
+  sales          Sale[]          // As Client
+  customerOrders CustomerOrder[] // Orders placed by this client
+  supplierOrders CustomerOrder[] @relation("OrderProvider") // Orders fulfilled by this provider
+}
+
+// ---------------------------------------------------------
+// INVENTORY & PRODUCT
+// ---------------------------------------------------------
+
+model Product {
+  id          String   @id @default(uuid())
+  name        String
+  sku         String?  // Stock Keeping Unit
+  description String?
+  imageUrl    String?
+  
+  stockTotal  Int      @default(0)
+  minStock    Int      @default(5)
+  
+  category    String?
+  subcategory String?
+  brand       String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  batches     InventoryBatch[]
+}
+
+model InventoryBatch {
+  id          String   @id @default(uuid())
+  product     Product  @relation(fields: [productId], references: [id])
+  productId   String
+  
+  quantity    Int      // Current quantity available in this batch
+  initialQty  Int      // Quantity originally purchased
+  unitCost    Float    // Cost per unit at purchase time
+  
+  status      String   // TRANSIT, AVAILABLE, SOLD_OUT, RESERVED
+  
+  purchase    Purchase @relation(fields: [purchaseId], references: [id])
+  purchaseId  String
+  
+  arrivalDate DateTime? // When it physically arrives
+  createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------
+// PURCHASES (BUYING)
+// ---------------------------------------------------------
+
+model Purchase {
+  id            String   @id @default(uuid())
+  receiptNumber String?  // Invoice number from provider
+  
+  provider      Contact  @relation(fields: [providerId], references: [id])
+  providerId    String
+  
+  date          DateTime @default(now())
+  
+  // Money Source
+  paymentAccount   FinancialAccount? @relation(fields: [paymentAccountId], references: [id])
+  paymentAccountId String?
+  
+  totalAmount   Float
+  notes         String?
+  
+  batches       InventoryBatch[]
+  
+  createdAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------
+// SALES (SELLING)
+// ---------------------------------------------------------
+
+model Sale {
+  id            String   @id @default(uuid())
+  client        Contact? @relation(fields: [clientId], references: [id])
+  clientId      String?
+  
+  date          DateTime @default(now())
+  invoiceNumber String? // Generated unique sale ID
+  
+  // Money Destination
+  depositAccount   FinancialAccount? @relation(fields: [depositAccountId], references: [id])
+  depositAccountId String?
+  
+  // Financial breakdown
+  channel       String? // 'MercadoLibre', 'Facebook', 'WhatsApp', 'Presencial', 'LuegoPago'
+  paymentMethod String? // 'SISTECREDITO', 'NORMAL', etc.
+  
+  grossAmount   Float   // Price charged to customer
+  platformFee   Float?  // Commission (15.5%)
+  shippingCost  Float?  // Envío (7600)
+  taxes         Float?  // Retencion
+  netAmount     Float?  // Final profit/income
+  
+  items            SaleItem[]
+  returns          Return[]          // Relation to returns
+  deferredPayments DeferredPayment[] // SisteCredito deferred payments
+  
+  createdAt     DateTime @default(now())
+}
+
+model SaleItem {
+  id          String   @id @default(uuid())
+  sale        Sale     @relation(fields: [saleId], references: [id])
+  saleId      String
+  
+  // Snapshot of product details at time of sale
+  productName String
+  quantity    Int
+  unitPrice   Float
+  
+  // Cost tracking (which batch was this sold from? optional for simplicity or FIFO)
+  unitCost    Float?   // Calculated cost at moment of sale
+  
+  // Warranty
+  serialNumber String?
+  warrantyEnd  DateTime?
+  
+  returnItems  ReturnItem[] // Relation to returned items
+}
+
+// ---------------------------------------------------------
+// RETURNS (DEVOLUCIONES)
+// ---------------------------------------------------------
+
+model Return {
+  id              String   @id @default(uuid())
+  
+  // Relación con la venta original
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  saleId          String
+  
+  // Razón de la devolución
+  reason          String   // 'CHANGE_OF_MIND', 'DEFECTIVE', 'WARRANTY', 'WRONG_ITEM', 'OTHER'
+  notes           String?  // Detalles adicionales
+  
+  // Estado de la devolución
+  status          String   // 'PENDING', 'APPROVED', 'REJECTED', 'COMPLETED'
+  
+  // Montos
+  refundAmount    Float    // Total a reembolsar (puede incluir envío, comisiones, impuestos)
+  shippingCost    Float?   @default(0) // Costo de envío de retorno (para garantías)
+  
+  // Reembolso financiero
+  refundAccount   FinancialAccount? @relation(fields: [refundAccountId], references: [id])
+  refundAccountId String?  // Cuenta desde donde se reembolsa
+  
+  // Items devueltos
+  items           ReturnItem[]
+  
+  // Fechas
+  requestedAt     DateTime @default(now())
+  processedAt     DateTime?
+  
+  createdAt       DateTime @default(now())
+}
+
+model ReturnItem {
+  id              String   @id @default(uuid())
+  
+  return          Return   @relation(fields: [returnId], references: [id])
+  returnId        String
+  
+  // Relación con el item original de la venta
+  saleItem        SaleItem @relation(fields: [saleItemId], references: [id])
+  saleItemId      String
+  
+  // Producto (snapshot para referencia)
+  productId       String?  // ID del producto para re-stock
+  productName     String   // Nombre del producto
+  
+  // Cantidad devuelta (puede ser parcial)
+  quantity        Int
+  
+  // Montos
+  unitPrice       Float    // Precio al que se vendió
+  refundPerUnit   Float    // Monto a reembolsar por unidad
+  
+  // Estado del producto devuelto
+  productCondition String  // 'GOOD', 'DEFECTIVE', 'DAMAGED'
+  
+  // Restock
+  restocked       Boolean  @default(false)
+  restockedAt     DateTime?
+  batchId         String?  // ID del batch creado al re-stock
+}
+
+// ---------------------------------------------------------
+// DEFERRED PAYMENTS (SISTECREDITO)
+// ---------------------------------------------------------
+
+model DeferredPayment {
+  id              String   @id @default(uuid())
+  
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  saleId          String
+  
+  amount          Float    // Net amount to be received
+  platform        String   // "LUEGOPAGO"
+  paymentMethod   String   // "SISTECREDITO"
+  
+  status          String   @default("PENDING") // PENDING, DISBURSED, CANCELLED
+  
+  saleDate        DateTime // When the sale was made
+  expectedDate    DateTime // saleDate + 60 days
+  disbursedDate   DateTime? // When money actually arrived
+  
+  // Where the money will go when disbursed
+  targetAccount   FinancialAccount? @relation(fields: [targetAccountId], references: [id])
+  targetAccountId String?
+  
+  notes           String?
+  createdAt       DateTime @default(now())
+}
+
+// ---------------------------------------------------------
+// CUSTOMER ORDERS (PEDIDOS ESPECIALES & APARTADOS)
+// ---------------------------------------------------------
+
+model CustomerOrder {
+  id              String   @id @default(uuid())
+  type            String   // "CUSTOM" (pedido especial) or "LAYAWAY" (apartado)
+  
+  client          Contact  @relation(fields: [clientId], references: [id])
+  clientId        String
+  
+  // Product info
+  description     String   // What was ordered / product name
+  productId       String?  // Link to existing Product (required for LAYAWAY)
+  quantity        Int      @default(1)
+  
+  // Pricing
+  agreedPrice     Float    // Total price agreed with client
+  estimatedCost   Float?   // What it costs from supplier (CUSTOM)
+  totalPaid       Float    @default(0) // Running total of all payments
+  
+  // Supplier (CUSTOM only)
+  provider        Contact? @relation("OrderProvider", fields: [providerId], references: [id])
+  providerId      String?
+  purchaseId      String?  // Links to Purchase when ordered
+  supplierInvoice String?  // Factura del proveedor
+  supplierPaymentAccountId String? // Cuenta desde donde se pagó al proveedor
+  
+  // Stock reservation (LAYAWAY only)
+  reservedBatchId String?  // Which batch was reserved
+  
+  // Status
+  status          String   @default("PENDING")
+  // CUSTOM:  PENDING → ORDERED → IN_TRANSIT → ARRIVED → DELIVERED | CANCELLED
+  // LAYAWAY: RESERVED → PAYING → PAID → DELIVERED | CANCELLED
+  
+  // Dates
+  requestDate     DateTime @default(now())
+  orderedDate     DateTime?     // When ordered from supplier
+  expectedArrival DateTime?     // Estimated arrival date
+  arrivedDate     DateTime?     // When product arrived at store
+  deliveredDate   DateTime?     // When delivered to client
+  
+  // Flags
+  addToInventory  Boolean  @default(false) // CUSTOM: add to stock on arrival?
+  
+  payments        OrderPayment[]
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model OrderPayment {
+  id        String   @id @default(uuid())
+  
+  order     CustomerOrder @relation(fields: [orderId], references: [id])
+  orderId   String
+  
+  amount    Float
+  type      String   // "ADVANCE", "PARTIAL", "FINAL"
+  method    String   // "Efectivo", "Transferencia", "Crédito"
+  
+  // Financial account where money was received
+  account   FinancialAccount? @relation(fields: [accountId], references: [id])
+  accountId String?
+  
+  date      DateTime @default(now())
+  notes     String?
+}
+
+// ---------------------------------------------------------
+// AUTHENTICATION
+// ---------------------------------------------------------
+
+model User {
+  id       String @id @default(uuid())
+  username String @unique
+  password String
+  name     String?
+}
