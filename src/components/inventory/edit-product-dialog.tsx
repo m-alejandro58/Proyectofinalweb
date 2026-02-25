@@ -269,7 +269,7 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: { 
                                                 id="edit-cost"
                                                 type="number"
                                                 min="0"
-                                                step="100"
+                                                step="any"
                                                 className="pl-7"
                                                 value={newUnitCost}
                                                 onChange={(e) => setNewUnitCost(e.target.value)}

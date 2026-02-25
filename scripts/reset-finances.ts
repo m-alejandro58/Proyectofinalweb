@@ -3,42 +3,46 @@ import { prisma } from "../src/lib/db"
 async function main() {
     console.log("⚠️ STARTING FINANCIAL DATA RESET ⚠️")
 
-    // 1. Delete dependent transactional data
-    console.log("Deleting Sale Items...")
-    await prisma.saleItem.deleteMany()
+    // 1. Delete dependent transactional data (Children first)
+    console.log("Deleting Provider Claims...")
+    await prisma.providerClaim.deleteMany()
 
-    console.log("Deleting Sales...")
+    console.log("Deleting Returns & Return Items...")
+    await prisma.returnItem.deleteMany()
+    await prisma.return.deleteMany()
+
+    console.log("Deleting Customer Orders & Payments...")
+    await prisma.orderPayment.deleteMany()
+    await prisma.customerOrder.deleteMany()
+
+    console.log("Deleting Sales & Deferred Payments...")
+    await prisma.saleItem.deleteMany()
+    await prisma.deferredPayment.deleteMany()
     await prisma.sale.deleteMany()
 
-    console.log("Deleting Inventory Batches (Purchased Items)...")
-    await prisma.inventoryBatch.deleteMany()
+    console.log("Deleting MercadoLibre FULL Inventory...")
+    await prisma.fullInventory.deleteMany()
+    await prisma.fullShipment.deleteMany()
 
-    console.log("Deleting Purchases...")
+    console.log("Deleting Purchases & Inventory Batches...")
+    await prisma.inventoryBatch.deleteMany()
     await prisma.purchase.deleteMany()
 
-    console.log("Deleting Expenses...")
+    console.log("Deleting General Financials...")
     await prisma.expense.deleteMany()
-
-    console.log("Deleting Transactions...")
     await prisma.transaction.deleteMany()
 
-    // 2. Reset Financial Accounts
-    console.log("Resetting Financial Account Balances...")
-    await prisma.financialAccount.updateMany({
-        data: { balance: 0 }
-    })
+    // 2. Delete Core Metadata (Parents)
+    console.log("Deleting Products & Catalog...")
+    await prisma.product.deleteMany()
 
-    // Optional: Reset Inventory Batches to 0 or delete?
-    // User asked for "Financial Part", usually inventory stock is part of it but maybe they want to keep products.
-    // If we delete purchases, the batches created by purchases might remain if not cascaded, 
-    // but looking at logic, batches are usually tied to purchases or created manually.
-    // Let's reset inventory quantities to 0 to be safe/consistent?
-    // Or better, leave inventory alone unless requested? "Financial part" implies money. 
-    // But Sales reduce inventory. If I reset sales, inventory doesn't magically come back.
-    // Actually, if they want to start "from zero", they probably want inventory 0 too?
-    // Let's stick to MONETARY transactions first.
+    console.log("Deleting Contacts (Clients/Providers)...")
+    await prisma.contact.deleteMany()
 
-    console.log("✅ FINANCIAS RESET COMPLETE")
+    console.log("Deleting Financial Accounts...")
+    await prisma.financialAccount.deleteMany()
+
+    console.log("✅ FULL SYSTEM WIPE COMPLETE (Users kept intact)")
 }
 
 main()

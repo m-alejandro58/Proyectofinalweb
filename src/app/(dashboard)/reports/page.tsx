@@ -5,6 +5,7 @@ import { MetricCard } from "@/components/reports/metric-card"
 import { ReportsCharts } from "@/components/reports/charts"
 import { TransactionsTable } from "@/components/reports/transactions-table"
 import { DollarSign, ShoppingBag, Truck, Package, Users, TrendingUp, CreditCard } from "lucide-react"
+import { ExportButton } from "@/components/export-buttons"
 
 export default async function ReportsPage({
     searchParams,
@@ -77,6 +78,31 @@ export default async function ReportsPage({
                 />
             </div>
 
+            {/* PLATFORM COSTS BREAKDOWN */}
+            {summary.platformBreakdown.length > 0 && (
+                <div className="mt-4 border p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50">
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        <CreditCard className="w-5 h-5 text-muted-foreground" />
+                        Costos por Plataforma
+                    </h3>
+                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
+                        {summary.platformBreakdown.map(p => (
+                            <div key={p.name} className="flex flex-col gap-1 p-3 rounded-lg border bg-background">
+                                <span className="text-sm font-bold capitalize">{p.name.toLowerCase()}</span>
+                                <div className="flex justify-between text-xs mt-1">
+                                    <span className="text-muted-foreground">Comisiones:</span>
+                                    <span className="font-mono text-rose-600 dark:text-rose-400">{formatCurrency(p.commissions)}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="text-muted-foreground">Envíos:</span>
+                                    <span className="font-mono text-rose-600 dark:text-rose-400">{formatCurrency(p.shipping)}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* SUMMARY CARDS ROW 2: OPERATIONS */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
@@ -111,7 +137,10 @@ export default async function ReportsPage({
 
             {/* DETAILED TRANSACTIONS TABLE */}
             <div className="mt-8">
-                <h2 className="text-xl font-bold mb-4">Detalle de Ventas</h2>
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold">Detalle de Ventas</h2>
+                    <ExportButton table="transactions" label="Exportar Reporte CSV" />
+                </div>
                 <TransactionsTable data={data.transactions} />
             </div>
 

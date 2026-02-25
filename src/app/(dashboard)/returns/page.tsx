@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { CreateReturnDialog } from "@/components/returns/create-return-dialog"
 import { ProcessReturnDialog } from "@/components/returns/process-return-dialog"
 import { CreateClaimDialog } from "@/components/claims/create-claim-dialog"
+import { ExportButton } from "@/components/export-buttons"
 
 export default async function ReturnsPage() {
     const { data: returns } = await getReturns()
@@ -46,7 +47,10 @@ export default async function ReturnsPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Devoluciones</h1>
                     <p className="text-muted-foreground">Gestión de productos devueltos y reembolsos.</p>
                 </div>
-                <CreateReturnDialog />
+                <div className="flex gap-2">
+                    <ExportButton table="returns" label="Exportar CSV" />
+                    <CreateReturnDialog />
+                </div>
             </div>
 
             <Card>

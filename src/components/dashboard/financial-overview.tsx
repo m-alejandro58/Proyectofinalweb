@@ -98,13 +98,7 @@ export function FinancialDashboard({ metrics }: { metrics: any }) {
                     </CardHeader>
                     <CardContent className="grid gap-4 md:grid-cols-3">
                         <div className="flex flex-col gap-2 p-4 rounded-lg bg-green-50 border border-green-100 dark:bg-green-900/20 dark:border-green-900">
-                            <div className="flex justify-between items-start">
-                                <span className="text-sm font-medium text-muted-foreground">Ganancia Bruta</span>
-                                <div className="text-[10px] text-right text-muted-foreground/80">
-                                    <div>+ Ventas: {formatCurrency(metrics.sales.total)}</div>
-                                    <div>- Costo: {formatCurrency(metrics.costs.cogs)}</div>
-                                </div>
-                            </div>
+                            <span className="text-sm font-medium text-muted-foreground">Ganancia Bruta</span>
                             <span className="text-2xl font-bold text-green-700 dark:text-green-400">{formatCurrency(metrics.profitability.gross)}</span>
                             <span className="text-xs text-green-600 dark:text-green-400 font-medium">Margen: {metrics.profitability.margins.gross.toFixed(1)}%</span>
                         </div>

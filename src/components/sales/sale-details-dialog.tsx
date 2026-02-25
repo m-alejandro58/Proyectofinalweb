@@ -10,7 +10,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog"
-import { Eye } from "lucide-react"
+import { Eye, AlertTriangle } from "lucide-react"
 import { getSaleById } from "@/app/actions/sales"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -71,10 +71,24 @@ export function SaleDetailsDialog({ saleId }: { saleId: string }) {
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Detalles de Venta</DialogTitle>
-                    <DialogDescription>
-                        Información completa de la transacción
-                    </DialogDescription>
+                    <div className="flex justify-between items-start pr-8">
+                        <div>
+                            <DialogTitle>Detalles de Venta</DialogTitle>
+                            <DialogDescription>
+                                Información completa de la transacción
+                            </DialogDescription>
+                        </div>
+                        {sale && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-200"
+                                onClick={() => window.open(`/receipt/${sale.id}`, '_blank')}
+                            >
+                                Imprimir Remisión
+                            </Button>
+                        )}
+                    </div>
                 </DialogHeader>
 
                 {loading && (
@@ -105,6 +119,12 @@ export function SaleDetailsDialog({ saleId }: { saleId: string }) {
                                 <p className="text-sm text-muted-foreground">Plataforma/Canal</p>
                                 <Badge variant="outline">{sale.channel}</Badge>
                             </div>
+                            {sale.paymentMethod && (
+                                <div>
+                                    <p className="text-sm text-muted-foreground">Medio de Pago</p>
+                                    <p className="font-medium">{sale.paymentMethod}</p>
+                                </div>
+                            )}
                             <div>
                                 <p className="text-sm text-muted-foreground">Cuenta de Depósito</p>
                                 <p className="font-medium">{sale.depositAccount?.name}</p>
@@ -116,6 +136,16 @@ export function SaleDetailsDialog({ saleId }: { saleId: string }) {
                                 </div>
                             )}
                         </div>
+
+                        {sale.isEdited && (
+                            <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-start gap-3">
+                                <AlertTriangle className="h-5 w-5 mt-0.5 shrink-0" />
+                                <div>
+                                    <p className="font-semibold text-sm">Venta Modificada</p>
+                                    <p className="text-sm mt-1">{sale.editReason}</p>
+                                </div>
+                            </div>
+                        )}
 
                         <Separator />
 

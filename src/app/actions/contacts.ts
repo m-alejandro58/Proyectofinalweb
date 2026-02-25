@@ -27,13 +27,18 @@ export async function createContact(formData: FormData) {
     const email = formData.get("email") as string
     const phone = formData.get("phone") as string
     const city = formData.get("city") as string
+    const address = formData.get("address") as string
 
     if (!name || !type) return { success: false, error: "Nombre y Tipo obligatorios" }
+
+    if (!govId) {
+        return { success: false, error: "La Cédula / NIT es obligatoria" }
+    }
 
     try {
         const contact = await prisma.contact.create({
             data: {
-                name, type, govId, email, phone, city
+                name, type, govId, email, phone, city, address
             }
         })
         revalidatePath("/contacts")

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -80,6 +80,17 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
         } else {
             alert(res.error)
         }
+    }
+
+    const [isMounted, setIsMounted] = useState(false)
+    useEffect(() => setIsMounted(true), [])
+
+    if (!isMounted) {
+        return (
+            <Button className="gap-2" variant={onSuccess ? "outline" : "default"} disabled>
+                <Plus className="h-4 w-4" /> {onSuccess ? "Nuevo" : "Nuevo Producto"}
+            </Button>
+        )
     }
 
     return (
@@ -235,7 +246,7 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
                                                 id="unitCost"
                                                 type="number"
                                                 min="0"
-                                                step="100"
+                                                step="any"
                                                 placeholder="Ej. 50000"
                                                 className="pl-7"
                                                 value={unitCost}

@@ -233,6 +233,9 @@ model Sale {
   taxes         Float?  // Retencion
   netAmount     Float?  // Final profit/income
   
+  isEdited      Boolean @default(false)
+  editReason    String?
+  
   items            SaleItem[]
   returns          Return[]          // Relation to returns
   deferredPayments DeferredPayment[] // SisteCredito deferred payments
@@ -483,8 +486,21 @@ model ProviderClaim {
 // ---------------------------------------------------------
 
 model User {
-  id       String @id @default(uuid())
-  username String @unique
+  id       String  @id @default(uuid())
+  username String  @unique
   password String
   name     String?
+  
+  role     String  @default("STANDARD") // "ADMIN" | "STANDARD"
+  isActive Boolean @default(true)
+  
+  // Granular permissions (for STANDARD users; ADMIN has all)
+  canSell             Boolean @default(false) // Ventas, Devoluciones
+  canManageInventory  Boolean @default(false) // Inventario, Compras & Proveedores
+  canManageFinances   Boolean @default(false) // Cuentas, Gastos, Reportes, Dashboard
+  canManageContacts   Boolean @default(false) // Contactos (CRM)
+  canManageOrders     Boolean @default(false) // Pedidos, MercadoLibre FULL
+  canManageClaims     Boolean @default(false) // Reclamaciones
+  
+  createdAt DateTime @default(now())
 }

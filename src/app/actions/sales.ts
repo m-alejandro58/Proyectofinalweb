@@ -34,6 +34,26 @@ export async function createSale(
     try {
         await prisma.$transaction(async (tx: any) => {
             // 1. Create Sale Header
+            // Generate consecutive invoice number if not provided (e.g. REM-0001)
+            let finalInvoiceNumber = invoiceNumber
+            if (!finalInvoiceNumber) {
+                // Find highest REM- number
+                const lastRem = await tx.sale.findFirst({
+                    where: { invoiceNumber: { startsWith: 'REM-' } },
+                    orderBy: { invoiceNumber: 'desc' }
+                })
+
+                let nextNum = 1
+                if (lastRem && lastRem.invoiceNumber) {
+                    const match = lastRem.invoiceNumber.match(/REM-(\d+)/)
+                    if (match && match[1]) {
+                        nextNum = parseInt(match[1], 10) + 1
+                    }
+                }
+
+                finalInvoiceNumber = `REM-${nextNum.toString().padStart(4, '0')}`
+            }
+
             const sale = await tx.sale.create({
                 data: {
                     clientId,
@@ -45,12 +65,13 @@ export async function createSale(
                     shippingCost,
                     taxes,
                     netAmount,
-                    invoiceNumber,
+                    invoiceNumber: finalInvoiceNumber,
                     date: new Date()
                 }
             })
 
             // 2. Process Items (Stock & Warranty)
+            let totalCogsForSale = 0
             for (const item of items) {
                 // Validation: Check Stock
                 const product = await tx.product.findUnique({ where: { id: item.productId } })
@@ -100,6 +121,7 @@ export async function createSale(
 
                 // Calculate weighted average unit cost
                 const calculatedUnitCost = item.quantity > 0 ? totalCost / item.quantity : 0
+                totalCogsForSale += totalCost
 
                 // Create Sale Item with unitCost
                 await tx.saleItem.create({
@@ -153,6 +175,12 @@ export async function createSale(
                 }
             }
 
+            // Calculate real taxes to save (GMF + ICA)
+            const gmfToSave = grossAmount * 0.004
+            const operatingProfit = grossAmount - totalCogsForSale - platformFee - shippingCost
+            const icaToSave = operatingProfit > 0 ? operatingProfit * 0.01 : 0
+            const autoTaxesToSave = gmfToSave + icaToSave
+
             // 3. Update Financial Account (Deposit)
             // Sales increase balance of Assets (Cash/Bank)
             // Or Decrease Debt if paying to Credit Card? (Unlikely)
@@ -160,8 +188,31 @@ export async function createSale(
 
             await tx.financialAccount.update({
                 where: { id: depositAccountId },
-                data: { balance: { increment: netAmount } }
+                data: { balance: { increment: netAmount - autoTaxesToSave } }
             })
+
+            // 3.5. Auto-divert taxes to "Impuestos Ahorrados"
+            if (autoTaxesToSave > 0) {
+                let taxAccount = await tx.financialAccount.findFirst({
+                    where: { name: 'Impuestos Ahorrados' }
+                })
+
+                if (!taxAccount) {
+                    taxAccount = await tx.financialAccount.create({
+                        data: {
+                            name: 'Impuestos Ahorrados',
+                            type: 'BANK',
+                            balance: 0,
+                            description: 'Cuenta automática para provisión de impuestos (4x1000, Retenciones, ICA)'
+                        }
+                    })
+                }
+
+                await tx.financialAccount.update({
+                    where: { id: taxAccount.id },
+                    data: { balance: { increment: autoTaxesToSave } }
+                })
+            }
 
             // 4. Auto-create DeferredPayment for SisteCredito
             if (channel === 'LUEGOPAGO' && paymentMethod === 'SISTECREDITO') {
@@ -239,5 +290,141 @@ export async function getSaleById(saleId: string) {
     } catch (error) {
         console.error("Error fetching sale:", error)
         return { success: false, error: "Error al obtener detalles de venta" }
+    }
+}
+
+export async function updateSale(saleId: string, updates: {
+    platformFee: number
+    shippingCost: number
+    taxes: number
+    channel: string
+    paymentMethod: string
+    depositAccountId: string
+    editReason: string
+}) {
+    await requireAuth()
+
+    try {
+        await prisma.$transaction(async (tx: any) => {
+            const sale = await tx.sale.findUnique({
+                where: { id: saleId },
+                include: { items: true }
+            })
+
+            if (!sale) throw new Error("Venta no encontrada")
+
+            const oldGross = sale.grossAmount
+            const oldPlat = sale.platformFee || 0
+            const oldShip = sale.shippingCost || 0
+            const oldTax = sale.taxes || 0
+            const oldNet = sale.netAmount || (oldGross - oldPlat - oldShip - oldTax)
+            const oldDepositAcc = sale.depositAccountId
+
+            // Calculate original COGS
+            const totalCogsForSale = sale.items.reduce((sum: number, item: any) => sum + ((item.unitCost || 0) * item.quantity), 0)
+
+            // Calculate original AutoTaxes
+            const oldGmf = oldGross * 0.004
+            const oldOpProfit = oldGross - totalCogsForSale - oldPlat - oldShip
+            const oldIca = oldOpProfit > 0 ? oldOpProfit * 0.01 : 0
+            const oldAutoTaxes = oldGmf + oldIca
+
+            // ------ 1. REVERSE OLD BALANCES ------
+            if (oldDepositAcc) {
+                await tx.financialAccount.update({
+                    where: { id: oldDepositAcc },
+                    data: { balance: { decrement: oldNet - oldAutoTaxes } }
+                })
+            }
+
+            if (oldAutoTaxes > 0) {
+                const taxAcc = await tx.financialAccount.findFirst({ where: { name: 'Impuestos Ahorrados' } })
+                if (taxAcc) {
+                    await tx.financialAccount.update({
+                        where: { id: taxAcc.id },
+                        data: { balance: { decrement: oldAutoTaxes } }
+                    })
+                }
+            }
+
+            // ------ 2. CALCULATE NEW VALUES ------
+            const newNet = oldGross - updates.platformFee - updates.shippingCost - updates.taxes
+            const newGmf = oldGross * 0.004
+            const newOpProfit = oldGross - totalCogsForSale - updates.platformFee - updates.shippingCost
+            const newIca = newOpProfit > 0 ? newOpProfit * 0.01 : 0
+            const newAutoTaxes = newGmf + newIca
+
+            // ------ 3. APPLY NEW BALANCES ------
+            if (updates.depositAccountId) {
+                await tx.financialAccount.update({
+                    where: { id: updates.depositAccountId },
+                    data: { balance: { increment: newNet - newAutoTaxes } }
+                })
+            }
+
+            if (newAutoTaxes > 0) {
+                let taxAcc = await tx.financialAccount.findFirst({ where: { name: 'Impuestos Ahorrados' } })
+                if (!taxAcc) {
+                    taxAcc = await tx.financialAccount.create({
+                        data: {
+                            name: 'Impuestos Ahorrados',
+                            type: 'BANK',
+                            balance: 0,
+                            description: 'Cuenta automática para provisión de impuestos'
+                        }
+                    })
+                }
+                await tx.financialAccount.update({
+                    where: { id: taxAcc.id },
+                    data: { balance: { increment: newAutoTaxes } }
+                })
+            }
+
+            // Update Deferred Payment if needed (just changing platform/method, amount)
+            // It's complex to revert or change SISTECREDITO logic completely, but we can update amount
+            const deferred = await tx.deferredPayment.findFirst({ where: { saleId: sale.id } })
+            if (updates.channel === 'LUEGOPAGO' && updates.paymentMethod === 'SISTECREDITO' && !deferred) {
+                // Was not Sistecredito before, now it is
+                const expectedDate = new Date(sale.date)
+                expectedDate.setDate(expectedDate.getDate() + 60)
+                await tx.deferredPayment.create({
+                    data: {
+                        saleId: sale.id, amount: newNet, platform: 'LUEGOPAGO', paymentMethod: 'SISTECREDITO', status: 'PENDING',
+                        saleDate: sale.date, expectedDate
+                    }
+                })
+            } else if (deferred && (updates.channel !== 'LUEGOPAGO' || updates.paymentMethod !== 'SISTECREDITO')) {
+                // Was Sistecredito, now it's not -> DELETE deferred payment
+                await tx.deferredPayment.delete({ where: { id: deferred.id } })
+            } else if (deferred && updates.channel === 'LUEGOPAGO' && updates.paymentMethod === 'SISTECREDITO') {
+                // Still sistecredito, just update amount
+                await tx.deferredPayment.update({ where: { id: deferred.id }, data: { amount: newNet } })
+            }
+
+            // ------ 4. UPDATE SALE RECORD ------
+            await tx.sale.update({
+                where: { id: saleId },
+                data: {
+                    platformFee: updates.platformFee,
+                    shippingCost: updates.shippingCost,
+                    taxes: updates.taxes,
+                    netAmount: newNet,
+                    channel: updates.channel,
+                    paymentMethod: updates.paymentMethod,
+                    depositAccountId: updates.depositAccountId,
+                    isEdited: true,
+                    editReason: updates.editReason
+                }
+            })
+        })
+
+        revalidatePath("/sales")
+        revalidatePath("/accounts")
+        revalidatePath("/reports")
+
+        return { success: true }
+    } catch (error: any) { // eslint-disable-line
+        console.error("Update Sale Error:", error)
+        return { success: false, error: error.message || "Error al modificar venta" }
     }
 }

@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { User, Truck } from "lucide-react"
+import { ExportButton } from "@/components/export-buttons"
 
 export default async function ContactsPage() {
     const { data: contacts } = await getContacts()
@@ -22,7 +23,11 @@ export default async function ContactsPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Contactos (CRM)</h1>
                     <p className="text-muted-foreground">Base de datos de Clientes y Proveedores.</p>
                 </div>
-                <CreateContactDialog />
+                <div className="flex gap-2">
+                    <ExportButton table="clients" label="Clientes CSV" />
+                    <ExportButton table="providers" label="Proveedores CSV" />
+                    <CreateContactDialog />
+                </div>
             </div>
 
             <Card>

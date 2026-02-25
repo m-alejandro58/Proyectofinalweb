@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -60,6 +60,34 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
     const [currentWarranty, setCurrentWarranty] = useState(12)
     const [currentSerial, setCurrentSerial] = useState("")
 
+    // Product search state
+    const [productSearch, setProductSearch] = useState("")
+    const [showResults, setShowResults] = useState(false)
+
+    // Filter products by search query (name, sku, brand, category)
+    const filteredProducts = useMemo(() => {
+        if (!productSearch.trim()) return products
+        const q = productSearch.toLowerCase()
+        return products.filter((p: any) =>
+            p.name?.toLowerCase().includes(q) ||
+            p.sku?.toLowerCase().includes(q) ||
+            p.brand?.toLowerCase().includes(q) ||
+            p.category?.toLowerCase().includes(q)
+        )
+    }, [productSearch, products])
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (!target.closest(".product-search-container")) {
+                setShowResults(false)
+            }
+        }
+        document.addEventListener("mousedown", handler)
+        return () => document.removeEventListener("mousedown", handler)
+    }, [])
+
     const handleNewClient = (newClient: any) => {
         setClients([...clients, newClient])
         setClientId(newClient.id)
@@ -88,9 +116,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
         }
         setPlatformFee(fee)
         // Reset payment method if channel changes away from LUEGOPAGO
-        if (channel !== "LUEGOPAGO") {
-            setPaymentMethod("")
-        }
+        // Removed: Now payment Method is global
     }, [grossAmount, channel])
 
     // Calculate Net
@@ -121,8 +147,10 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
 
         // Reset
         setCurrentProduct("")
+        setProductSearch("")
         setCurrentQty(1)
         setCurrentPrice(0)
+        setCurrentWarranty(12)
         setCurrentSerial("")
     }
 
@@ -165,9 +193,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
         }
     }
 
-    const onProductSelect = (id: string) => {
-        setCurrentProduct(id)
-    }
+
 
     return (
         <div className="space-y-6">
@@ -210,20 +236,24 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                                 </SelectContent>
                             </Select>
                         </div>
-                        {channel === "LUEGOPAGO" && (
-                            <div className="grid gap-2">
-                                <Label>Método de Pago (LuegoPago)</Label>
-                                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione método" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="SISTECREDITO">SisteCredito (60 días)</SelectItem>
-                                        <SelectItem value="NORMAL">Pago Normal</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
+
+                        <div className="grid gap-2">
+                            <Label>Medio de Pago</Label>
+                            <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Ej. Efectivo, Transferencia..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                                    <SelectItem value="TRANSFERENCIA">Transferencia / Bancolombia / Nequi</SelectItem>
+                                    <SelectItem value="TARJETA_CREDITO">Tarjeta de Crédito / Débito</SelectItem>
+                                    <SelectItem value="SISTECREDITO">SisteCredito</SelectItem>
+                                    <SelectItem value="MERCADOPAGO">Mercado Pago / Link de Pago</SelectItem>
+                                    <SelectItem value="OTRO">Otro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="grid gap-2">
                             <Label>Cuenta de Depósito</Label>
                             <Select onValueChange={setAccountId} value={accountId}>
@@ -300,31 +330,59 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                     <CardTitle>Productos</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 bg-muted/20 pb-6">
-                    <div className="grid grid-cols-6 gap-2 items-end">
-                        <div className="col-span-2 grid gap-1 min-w-0">
-                            <Label>Producto</Label>
-                            <Select value={currentProduct} onValueChange={onProductSelect}>
-                                <SelectTrigger className="w-full truncate">
-                                    <span className="truncate">
-                                        <SelectValue placeholder="Buscar producto..." />
-                                    </span>
-                                </SelectTrigger>
-                                <SelectContent className="max-w-[400px]">
-                                    {products.map((p: any) => {
-                                        const isLowStock = p.stockTotal <= 2 && p.stockTotal > 0
+                    {/* PRODUCT SEARCH */}
+                    <div className="grid gap-1 relative product-search-container">
+                        <Label>Buscar Producto (nombre, SKU, marca...)</Label>
+                        <Input
+                            placeholder="Escriba para buscar..."
+                            value={productSearch}
+                            onChange={e => {
+                                setProductSearch(e.target.value)
+                                setShowResults(true)
+                                setCurrentProduct("")
+                            }}
+                            onFocus={() => setShowResults(true)}
+                            className="font-medium"
+                            autoComplete="off"
+                        />
+                        {showResults && productSearch.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-[250px] overflow-y-auto bg-popover border rounded-md shadow-lg">
+                                {filteredProducts.length === 0 ? (
+                                    <div className="p-3 text-sm text-muted-foreground text-center">Sin resultados para &quot;{productSearch}&quot;</div>
+                                ) : (
+                                    filteredProducts.map((p: any) => {
                                         const isOut = p.stockTotal <= 0
+                                        const isLow = p.stockTotal <= 2 && p.stockTotal > 0
                                         return (
-                                            <SelectItem key={p.id} value={p.id} disabled={isOut} className={isOut ? "text-muted-foreground" : ""}>
-                                                {p.name}
-                                                <span className={`ml-2 text-xs ${isOut ? "text-red-500 font-bold" : isLowStock ? "text-orange-500 font-bold" : "text-muted-foreground"}`}>
-                                                    ({isOut ? "AGOTADO" : isLowStock ? `¡Últimas ${p.stockTotal}!` : `Stock: ${p.stockTotal}`})
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                disabled={isOut}
+                                                className={`w-full text-left px-3 py-2 hover:bg-accent flex justify-between items-center text-sm border-b last:border-b-0 ${isOut ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                                                onClick={() => {
+                                                    setCurrentProduct(p.id)
+                                                    setProductSearch(`${p.name} ${p.sku ? `(${p.sku})` : ""}`)
+                                                    setShowResults(false)
+                                                }}
+                                            >
+                                                <div>
+                                                    <span className="font-medium">{p.name}</span>
+                                                    {p.sku && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.sku}</span>}
+                                                    {p.brand && <span className="ml-2 text-xs text-muted-foreground">• {p.brand}</span>}
+                                                </div>
+                                                <span className={`text-xs font-bold ${isOut ? "text-red-500" : isLow ? "text-orange-500" : "text-green-600"}`}>
+                                                    {isOut ? "AGOTADO" : isLow ? `¡Últimas ${p.stockTotal}!` : `Stock: ${p.stockTotal}`}
                                                 </span>
-                                            </SelectItem>
+                                            </button>
                                         )
-                                    })}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                    })
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* DETAILS ROW */}
+                    <div className="grid grid-cols-5 gap-2 items-end">
                         <div className="grid gap-1">
                             <Label>Cant.</Label>
                             <Input type="number" min="1" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} />
@@ -334,12 +392,16 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                             <Input type="number" min="0" value={currentPrice} onChange={e => setCurrentPrice(Number(e.target.value))} />
                         </div>
                         <div className="grid gap-1">
-                            <Label>Serial / Garantía</Label>
+                            <Label>Garantía (meses)</Label>
+                            <Input type="number" min="0" value={currentWarranty} onChange={e => setCurrentWarranty(Number(e.target.value))} />
+                        </div>
+                        <div className="grid gap-1">
+                            <Label>Serial (Opcional)</Label>
                             <Input placeholder="SN123..." value={currentSerial} onChange={e => setCurrentSerial(e.target.value)} />
                         </div>
                         <div>
                             <Button onClick={addItem} type="button" className="w-full">
-                                <Plus className="h-4 w-4" />
+                                <Plus className="h-4 w-4 mr-1" /> Agregar
                             </Button>
                         </div>
                     </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { login, createInitialUser } from "@/app/actions/auth"
-import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -10,12 +9,22 @@ import { Label } from "@/components/ui/label"
 import { Lock, User } from "lucide-react"
 import Image from "next/image"
 
+// Determine the first available route for a user based on their permissions
+function getFirstRoute(user: any): string {
+    if (user.role === "ADMIN") return "/"
+    if (user.canManageFinances) return "/"
+    if (user.canSell) return "/sales"
+    if (user.canManageInventory) return "/inventory"
+    if (user.canManageOrders) return "/orders"
+    if (user.canManageContacts) return "/contacts"
+    if (user.canManageClaims) return "/claims"
+    return "/"
+}
+
 export default function LoginPage() {
-    const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState("")
 
-    // Hack: Ensure admin exists on first load of login page
     useEffect(() => {
         createInitialUser()
     }, [])
@@ -29,8 +38,10 @@ export default function LoginPage() {
         const res = await login(formData)
 
         if (res.success) {
-            router.push("/")
-            router.refresh()
+            // Use permissions from the login response directly — no second server call
+            const route = getFirstRoute(res)
+            // Use window.location for a full page reload so the cookie is picked up cleanly
+            window.location.href = route
         } else {
             setError(res.error || "Error al iniciar sesión")
             setLoading(false)
@@ -62,9 +73,10 @@ export default function LoginPage() {
                                 <Input
                                     id="username"
                                     name="username"
-                                    placeholder="admin"
+                                    placeholder="usuario"
                                     className="pl-9 bg-slate-900 border-slate-800 focus-visible:ring-cyan-500"
                                     required
+                                    autoComplete="off"
                                 />
                             </div>
                         </div>
@@ -79,6 +91,7 @@ export default function LoginPage() {
                                     placeholder="***"
                                     className="pl-9 bg-slate-900 border-slate-800 focus-visible:ring-cyan-500"
                                     required
+                                    autoComplete="off"
                                 />
                             </div>
                         </div>
@@ -86,9 +99,6 @@ export default function LoginPage() {
                         <Button type="submit" className="w-full bg-cyan-600 hover:bg-cyan-700 text-white" disabled={loading}>
                             {loading ? "Entrando..." : "Iniciar Sesión"}
                         </Button>
-                        <p className="text-xs text-center text-slate-500 mt-2">
-                            Default: admin / 123
-                        </p>
                     </form>
                 </CardContent>
             </Card>

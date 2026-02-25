@@ -117,11 +117,12 @@ export function ReportFilters() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Todas las plataformas</SelectItem>
-                        <SelectItem value="MercadoLibre">MercadoLibre</SelectItem>
-                        <SelectItem value="Facebook">Facebook</SelectItem>
-                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                        <SelectItem value="Presencial">Presencial</SelectItem>
-                        <SelectItem value="Website">Website</SelectItem>
+                        <SelectItem value="MERCADOLIBRE">MercadoLibre</SelectItem>
+                        <SelectItem value="LUEGOPAGO">LuegoPago</SelectItem>
+                        <SelectItem value="FACEBOOK">Facebook</SelectItem>
+                        <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                        <SelectItem value="PRESENCIAL">Presencial</SelectItem>
+                        <SelectItem value="WEBSITE">Website</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

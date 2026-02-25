@@ -13,9 +13,14 @@ import {
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
+import { EditSaleDialog } from "@/components/sales/edit-sale-dialog"
+import { getFinancialAccounts } from "@/app/actions/accounts"
+import { ExportButton } from "@/components/export-buttons"
 
 export default async function SalesPage() {
     const { data: sales } = await getSales()
+    const { data: accountsRaw } = await getFinancialAccounts()
+    const accounts = accountsRaw || []
 
     return (
         <div className="flex flex-col gap-6">
@@ -24,11 +29,14 @@ export default async function SalesPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Ventas</h1>
                     <p className="text-muted-foreground">Historial de facturación y ganancias.</p>
                 </div>
-                <Link href="/sales/new">
-                    <Button className="gap-2">
-                        <Plus className="h-4 w-4" /> Nueva Venta
-                    </Button>
-                </Link>
+                <div className="flex gap-2">
+                    <ExportButton table="sales" label="Exportar CSV" />
+                    <Link href="/sales/new">
+                        <Button className="gap-2">
+                            <Plus className="h-4 w-4" /> Nueva Venta
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
             <Card>
@@ -55,7 +63,7 @@ export default async function SalesPage() {
                                         {s.client?.name}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="outline">{s.platform}</Badge>
+                                        <Badge variant="outline">{s.channel}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         ${s.grossAmount.toLocaleString()}
@@ -67,7 +75,10 @@ export default async function SalesPage() {
                                         ${(s.netAmount || 0).toLocaleString()}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <SaleDetailsDialog saleId={s.id} />
+                                        <div className="flex justify-end items-center gap-2">
+                                            <EditSaleDialog sale={s} accounts={accounts} />
+                                            <SaleDetailsDialog saleId={s.id} />
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

@@ -1,7 +1,10 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from "recharts"
+import { Download } from "lucide-react"
+import { useRef } from "react"
 
 interface ReportsChartsProps {
     salesOverTime: { date: string; sales: number; profit: number }[]
@@ -10,6 +13,28 @@ interface ReportsChartsProps {
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+function downloadSvg(containerId: string, filename: string) {
+    const container = document.getElementById(containerId)
+    if (!container) return
+
+    const svgEl = container.querySelector("svg")
+    if (!svgEl) {
+        alert("No se encontró el gráfico para exportar")
+        return
+    }
+
+    const svgData = new XMLSerializer().serializeToString(svgEl)
+    const blob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    URL.revokeObjectURL(url)
+    a.remove()
+}
 
 export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMethod }: ReportsChartsProps) {
 
@@ -32,10 +57,13 @@ export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMe
 
             {/* SALES & PROFIT OVER TIME */}
             <Card className="col-span-1 lg:col-span-2">
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Ventas y Ganancias en el Tiempo</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => downloadSvg("chart-sales-time", "ventas_ganancias.svg")} title="Descargar SVG">
+                        <Download className="h-4 w-4 mr-1" /> SVG
+                    </Button>
                 </CardHeader>
-                <CardContent className="h-[350px]">
+                <CardContent className="h-[350px]" id="chart-sales-time">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={salesOverTime} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -57,10 +85,13 @@ export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMe
 
             {/* SALES BY PLATFORM */}
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Ventas por Plataforma</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => downloadSvg("chart-platform", "ventas_plataforma.svg")} title="Descargar SVG">
+                        <Download className="h-4 w-4 mr-1" /> SVG
+                    </Button>
                 </CardHeader>
-                <CardContent className="h-[300px]">
+                <CardContent className="h-[300px]" id="chart-platform">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie
@@ -86,10 +117,13 @@ export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMe
 
             {/* SALES BY PAYMENT METHOD */}
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Métodos de Pago Utilizados</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => downloadSvg("chart-payment", "metodos_pago.svg")} title="Descargar SVG">
+                        <Download className="h-4 w-4 mr-1" /> SVG
+                    </Button>
                 </CardHeader>
-                <CardContent className="h-[300px]">
+                <CardContent className="h-[300px]" id="chart-payment">
                     <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                             <Pie

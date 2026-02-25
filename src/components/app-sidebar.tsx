@@ -1,11 +1,7 @@
 "use client"
 
 import {
-    Calendar,
     Home,
-    Inbox,
-    Search,
-    Settings,
     Wallet,
     ShoppingCart,
     TrendingUp,
@@ -13,13 +9,13 @@ import {
     Users,
     BarChart3,
     Receipt,
-    CreditCard,
-    Truck,
     RotateCcw,
     ClipboardList,
     ShieldAlert,
-    Warehouse
+    Warehouse,
+    Settings
 } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import {
     Sidebar,
@@ -33,72 +29,55 @@ import {
     SidebarFooter,
     SidebarHeader
 } from "@/components/ui/sidebar"
+import { getCurrentUser } from "@/app/actions/auth"
 
-// Menu items.
-const items = [
-    {
-        title: "Dashboard",
-        url: "/",
-        icon: Home,
-    },
-    {
-        title: "Cuentas Financieras",
-        url: "/accounts",
-        icon: Wallet,
-    },
-    {
-        title: "Ventas",
-        url: "/sales",
-        icon: TrendingUp,
-    },
-    {
-        title: "Devoluciones",
-        url: "/returns",
-        icon: RotateCcw,
-    },
-    {
-        title: "Reclamaciones",
-        url: "/claims",
-        icon: ShieldAlert,
-    },
-    {
-        title: "MercadoLibre FULL",
-        url: "/full",
-        icon: Warehouse,
-    },
-    {
-        title: "Compras & Proveedores",
-        url: "/purchases",
-        icon: ShoppingCart,
-    },
-    {
-        title: "Inventario",
-        url: "/inventory",
-        icon: Package,
-    },
-    {
-        title: "Gastos Operativos",
-        url: "/expenses",
-        icon: Receipt,
-    },
-    {
-        title: "Contactos (CRM)",
-        url: "/contacts",
-        icon: Users,
-    },
-    {
-        title: "Pedidos / Apartados",
-        url: "/orders",
-        icon: ClipboardList,
-    },
-    {
-        title: "Reportes",
-        url: "/reports",
-        icon: BarChart3,
-    },
+type UserPerms = {
+    role: string
+    canSell: boolean
+    canManageInventory: boolean
+    canManageFinances: boolean
+    canManageContacts: boolean
+    canManageOrders: boolean
+    canManageClaims: boolean
+}
+
+// Each item declares which permission it needs
+const allItems = [
+    { title: "Dashboard", url: "/", icon: Home, perm: "canManageFinances" },
+    { title: "Cuentas Financieras", url: "/accounts", icon: Wallet, perm: "canManageFinances" },
+    { title: "Ventas", url: "/sales", icon: TrendingUp, perm: "canSell" },
+    { title: "Devoluciones", url: "/returns", icon: RotateCcw, perm: "canSell" },
+    { title: "Reclamaciones", url: "/claims", icon: ShieldAlert, perm: "canManageClaims" },
+    { title: "MercadoLibre FULL", url: "/full", icon: Warehouse, perm: "canManageOrders" },
+    { title: "Compras & Proveedores", url: "/purchases", icon: ShoppingCart, perm: "canManageInventory" },
+    { title: "Inventario", url: "/inventory", icon: Package, perm: "canManageInventory" },
+    { title: "Gastos Operativos", url: "/expenses", icon: Receipt, perm: "canManageFinances" },
+    { title: "Contactos (CRM)", url: "/contacts", icon: Users, perm: "canManageContacts" },
+    { title: "Pedidos / Apartados", url: "/orders", icon: ClipboardList, perm: "canManageOrders" },
+    { title: "Reportes", url: "/reports", icon: BarChart3, perm: "canManageFinances" },
 ]
 
+function getVisibleItems(user: UserPerms) {
+    if (user.role === "ADMIN") return allItems
+    return allItems.filter(item => {
+        const key = item.perm as keyof UserPerms
+        return user[key] === true
+    })
+}
+
 export function AppSidebar() {
+    const [items, setItems] = useState<typeof allItems>([])
+    const [isAdmin, setIsAdmin] = useState(false)
+
+    useEffect(() => {
+        getCurrentUser().then(user => {
+            if (user) {
+                setItems(getVisibleItems(user as UserPerms))
+                setIsAdmin(user.role === "ADMIN")
+            }
+        })
+    }, [])
+
     return (
         <Sidebar>
             <SidebarHeader className="p-4 border-b">
@@ -123,6 +102,24 @@ export function AppSidebar() {
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>
+
+                {isAdmin && (
+                    <SidebarGroup>
+                        <SidebarGroupLabel>Administración</SidebarGroupLabel>
+                        <SidebarGroupContent>
+                            <SidebarMenu>
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton asChild>
+                                        <a href="/admin" className="flex items-center gap-3 py-3">
+                                            <Settings className="h-5 w-5" />
+                                            <span className="text-base">Gestión de Usuarios</span>
+                                        </a>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            </SidebarMenu>
+                        </SidebarGroupContent>
+                    </SidebarGroup>
+                )}
             </SidebarContent>
             <SidebarFooter className="p-4 border-t">
                 <div className="text-xs text-center text-muted-foreground">

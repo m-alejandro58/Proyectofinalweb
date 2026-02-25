@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Package, Truck } from "lucide-react"
 import { ReceiveStockButton } from "@/components/inventory/receive-stock-button"
+import { ExportButton } from "@/components/export-buttons"
 
 export default async function InventoryPage() {
     const { data: products } = await getProducts()
@@ -34,7 +35,10 @@ export default async function InventoryPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Inventario</h1>
                     <p className="text-muted-foreground">Catalogo de productos y control de existencias.</p>
                 </div>
-                <CreateProductDialog />
+                <div className="flex gap-2">
+                    <ExportButton table="inventory" label="Exportar CSV" />
+                    <CreateProductDialog />
+                </div>
             </div>
 
             {/* Incoming Batches Section */}

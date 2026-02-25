@@ -41,6 +41,7 @@ export type ReportData = {
         totalProfit: number
         newClients: number
         totalPurchases: number
+        platformBreakdown: { name: string; sales: number; commissions: number; shipping: number }[]
     }
     charts: {
         salesOverTime: { date: string; sales: number; profit: number }[]
@@ -108,7 +109,7 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
 
         const transactions: TransactionRow[] = []
         const salesByDate: Record<string, { sales: number, profit: number }> = {}
-        const platformMap: Record<string, number> = {}
+        const platformStats: Record<string, { sales: number; commissions: number; shipping: number }> = {}
         const payMap: Record<string, number> = {}
 
         sales.forEach(sale => {
@@ -157,7 +158,10 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             salesByDate[dateKey].profit += net
 
             const ch = sale.channel || 'Otros'
-            platformMap[ch] = (platformMap[ch] || 0) + sale.grossAmount
+            if (!platformStats[ch]) platformStats[ch] = { sales: 0, commissions: 0, shipping: 0 }
+            platformStats[ch].sales += sale.grossAmount
+            platformStats[ch].commissions += (sale.platformFee || 0)
+            platformStats[ch].shipping += (sale.shippingCost || 0)
 
             const pm = sale.depositAccount?.type || 'Desconocido'
             payMap[pm] = (payMap[pm] || 0) + sale.grossAmount
@@ -186,7 +190,15 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             profit: val.profit // This is Sum of Row Nets (Contribution)
         })).sort((a, b) => a.date.localeCompare(b.date))
 
-        const salesByPlatform = Object.entries(platformMap).map(([name, value]) => ({ name, value }))
+        const salesByPlatform = Object.entries(platformStats).map(([name, stats]) => ({ name, value: stats.sales }))
+
+        const platformBreakdown = Object.entries(platformStats).map(([name, stats]) => ({
+            name,
+            sales: stats.sales,
+            commissions: stats.commissions,
+            shipping: stats.shipping
+        })).sort((a, b) => b.sales - a.sales) // Sort by sales desc
+
         const salesByPaymentMethod = Object.entries(payMap).map(([name, value]) => ({ name, value }))
 
         return {
@@ -199,7 +211,8 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                     totalUnitsSold,
                     totalProfit: summaryNetProfit,
                     newClients: newClientsCount,
-                    totalPurchases: purchasesCount
+                    totalPurchases: purchasesCount,
+                    platformBreakdown
                 },
                 charts: {
                     salesOverTime,

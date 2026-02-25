@@ -97,6 +97,7 @@ export function CreateContactDialog({ onSuccess }: { onSuccess?: (contact: any) 
                                 name="govId"
                                 placeholder="Cédula o NIT"
                                 className="col-span-3"
+                                required
                             />
                         </div>
                         <div className="grid grid-cols-4 items-center gap-4">
@@ -106,6 +107,27 @@ export function CreateContactDialog({ onSuccess }: { onSuccess?: (contact: any) 
                             <Input
                                 id="phone"
                                 name="phone"
+                                className="col-span-3"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="email" className="text-right">
+                                Correo
+                            </Label>
+                            <Input
+                                id="email"
+                                name="email"
+                                type="email"
+                                className="col-span-3"
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="address" className="text-right">
+                                Dirección
+                            </Label>
+                            <Input
+                                id="address"
+                                name="address"
                                 className="col-span-3"
                             />
                         </div>
