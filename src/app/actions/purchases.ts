@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { requireAuth } from "@/lib/auth-guard"
 
 type PurchaseItemInput = {
     productId: string
@@ -18,6 +19,7 @@ export async function createPurchase(
     notes?: string,
     isTransit: boolean = false
 ) {
+    await requireAuth()
     if (!providerId || !paymentAccountId || items.length === 0) {
         return { success: false, error: "Datos incompletos" }
     }
@@ -100,6 +102,7 @@ export async function createPurchase(
 }
 
 export async function getPurchases() {
+    await requireAuth()
     try {
         const purchases = await prisma.purchase.findMany({
             include: {

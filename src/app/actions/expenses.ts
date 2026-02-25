@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getExpenses() {
+    await requireAuth()
     try {
         const expenses = await prisma.expense.findMany({
             include: { financialAccount: true },
@@ -16,6 +18,7 @@ export async function getExpenses() {
 }
 
 export async function createExpense(formData: FormData) {
+    await requireAuth()
     const description = formData.get("description") as string
     const category = formData.get("category") as string
     const amount = parseFloat(formData.get("amount") as string)

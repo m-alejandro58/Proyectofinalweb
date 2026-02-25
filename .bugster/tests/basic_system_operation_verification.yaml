@@ -1,0 +1,29 @@
+name: Basic System Operation Verification
+page: login
+page_path: /login
+task: Verify core system functionality including authentication, dashboard access,
+  and navigation through key modules
+steps:
+- Navigate to the application home page
+- Enter 'admin' in the username field
+- Enter the password in the password field
+- "Click the 'Iniciar Sesi\xF3n' button"
+- Verify successful login and dashboard access
+- Verify dashboard displays key metrics including inventory value and product count
+- Click on 'Inventario' link in the navigation menu
+- Verify inventory page loads with product catalog displaying multiple products
+- Verify inventory shows proper product details including SKU, brand, and stock levels
+- Click on 'Ventas' link in the navigation menu
+- Verify sales page loads with proper table structure and 'Nueva Venta' button
+- Click on 'Contactos (CRM)' link in the navigation menu
+- Verify CRM page loads with contact database showing multiple contacts
+- Verify contacts display proper information including name, type, and location
+- Click on 'Dashboard' link to return to main dashboard
+- Verify successful navigation back to dashboard
+expected_result: Successfully authenticate, access dashboard with correct metrics,
+  and navigate through Inventory, Sales, and CRM modules with proper data display
+id: null
+project_id: null
+created_at: null
+updated_at: null
+file_path: null

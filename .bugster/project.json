@@ -1,0 +1,23 @@
+{
+  "metadata": {
+    "timestamp": 1771359047540,
+    "git": {
+      "branch": "main",
+      "commit": "adf07b591b8fb1fe5344209627efb1d8663a1988"
+    }
+  },
+  "data": {
+    "frameworks": [
+      {
+        "id": "next",
+        "name": "Next.js",
+        "dir_path": "D:\\OneDrive\\HARDSOFT\\Aplicacion_Hardsoft_2026\\"
+      }
+    ],
+    "commands": {
+      "test": {
+        "firstExecuted": true
+      }
+    }
+  }
+}

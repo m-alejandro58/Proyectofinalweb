@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 type SaleItemInput = {
     productId: string
@@ -23,6 +24,7 @@ export async function createSale(
     invoiceNumber?: string,
     paymentMethod?: string
 ) {
+    await requireAuth()
     if (!clientId || !depositAccountId || items.length === 0) {
         return { success: false, error: "Datos incompletos" }
     }
@@ -54,8 +56,9 @@ export async function createSale(
                 const product = await tx.product.findUnique({ where: { id: item.productId } })
                 if (!product) throw new Error(`Producto no encontrado ${item.productId}`)
 
-                if (product.stockTotal < item.quantity) {
-                    throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stockTotal}`)
+                const available = product.stockTotal - (product.stockFull || 0)
+                if (available < item.quantity) {
+                    throw new Error(`Stock insuficiente para ${product.name}. Disponible local: ${available} (Total: ${product.stockTotal}, En FULL: ${product.stockFull || 0})`)
                 }
 
                 // Calculate Warranty End Date
@@ -191,6 +194,7 @@ export async function createSale(
 }
 
 export async function getSales() {
+    await requireAuth()
     try {
         const sales = await prisma.sale.findMany({
             include: {
@@ -208,6 +212,7 @@ export async function getSales() {
 
 // Get single sale by ID with full details
 export async function getSaleById(saleId: string) {
+    await requireAuth()
     console.log("getSaleById called with:", saleId)
     try {
         const sale = await prisma.sale.findUnique({

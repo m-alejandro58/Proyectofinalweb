@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 // Tipos para crear devoluciones
 type ReturnItemInput = {
@@ -14,6 +15,7 @@ type ReturnReason = 'CHANGE_OF_MIND' | 'DEFECTIVE' | 'WARRANTY' | 'WRONG_ITEM' |
 
 // Validar elegibilidad de devolución
 export async function validateReturnEligibility(saleId: string) {
+    await requireAuth()
     try {
         const sale = await prisma.sale.findUnique({
             where: { id: saleId },
@@ -68,8 +70,8 @@ export async function createReturn(
     items: ReturnItemInput[],
     notes?: string
 ) {
+    await requireAuth()
     try {
-        // 1. Validar elegibilidad
         const eligibility = await validateReturnEligibility(saleId)
         if (!eligibility.success || !eligibility.data) {
             return eligibility
@@ -209,6 +211,7 @@ export async function processReturn(
     approve: boolean,
     refundAccountId?: string
 ) {
+    await requireAuth()
     console.log("processReturn called with:", { returnId, approve, refundAccountId })
 
     try {
@@ -380,6 +383,7 @@ export async function processReturn(
 
 // Obtener todas las devoluciones
 export async function getReturns(status?: string) {
+    await requireAuth()
     try {
         const where: any = {}
         if (status && status !== 'all') {
@@ -409,6 +413,7 @@ export async function getReturns(status?: string) {
 
 // Obtener una devolución específica
 export async function getReturnById(returnId: string) {
+    await requireAuth()
     try {
         const returnRecord = await prisma.return.findUnique({
             where: { id: returnId },

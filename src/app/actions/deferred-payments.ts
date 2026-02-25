@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getDeferredPayments(status?: string) {
+    await requireAuth()
     try {
         const where: any = {}
         if (status && status !== "ALL") {
@@ -32,6 +34,7 @@ export async function getDeferredPayments(status?: string) {
 }
 
 export async function getDeferredPaymentsSummary() {
+    await requireAuth()
     try {
         const pending = await prisma.deferredPayment.findMany({
             where: { status: "PENDING" }
@@ -69,6 +72,7 @@ export async function markAsDisbursed(
     targetAccountId: string,
     notes?: string
 ) {
+    await requireAuth()
     try {
         await prisma.$transaction(async (tx: any) => {
             const payment = await tx.deferredPayment.findUnique({

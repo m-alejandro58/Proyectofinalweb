@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, format } from "date-fns"
+import { requireAuth } from "@/lib/auth-guard"
 
 export type ReportFilters = {
     from?: Date
@@ -50,6 +51,7 @@ export type ReportData = {
 }
 
 export async function getReportData(filters?: ReportFilters): Promise<{ success: boolean; data?: ReportData; error?: string }> {
+    await requireAuth()
     try {
         const now = new Date()
         const start = filters?.from ? startOfDay(filters.from) : startOfMonth(now)

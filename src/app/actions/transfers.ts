@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function createTransfer(formData: FormData) {
+    await requireAuth()
     const amount = parseFloat(formData.get("amount") as string)
     const fromId = formData.get("fromId") as string
     const toId = formData.get("toId") as string

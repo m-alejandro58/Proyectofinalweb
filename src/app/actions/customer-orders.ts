@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 // ---- Types ----
 type CreateOrderInput = {
@@ -33,6 +34,7 @@ type PaymentInput = {
 
 // ---- Create Order ----
 export async function createCustomerOrder(input: CreateOrderInput) {
+    await requireAuth()
     if (!input.clientId || !input.description || input.agreedPrice <= 0) {
         return { success: false, error: "Datos incompletos" }
     }
@@ -51,8 +53,9 @@ export async function createCustomerOrder(input: CreateOrderInput) {
                     where: { id: input.productId }
                 })
                 if (!product) throw new Error("Producto no encontrado")
-                if (product.stockTotal < input.quantity) {
-                    throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stockTotal}`)
+                const available = product.stockTotal - (product.stockFull || 0)
+                if (available < input.quantity) {
+                    throw new Error(`Stock insuficiente para ${product.name}. Disponible local: ${available} (Total: ${product.stockTotal}, En FULL: ${product.stockFull || 0})`)
                 }
 
                 // Find FIFO batch to reserve from
@@ -176,6 +179,7 @@ export async function createCustomerOrder(input: CreateOrderInput) {
 
 // ---- Get Orders ----
 export async function getCustomerOrders(filter?: { type?: string, status?: string }) {
+    await requireAuth()
     try {
         const where: any = {}
         if (filter?.type && filter.type !== "ALL") {
@@ -207,6 +211,7 @@ export async function getCustomerOrders(filter?: { type?: string, status?: strin
 
 // ---- Get Order By Id ----
 export async function getOrderById(orderId: string) {
+    await requireAuth()
     try {
         const order = await prisma.customerOrder.findUnique({
             where: { id: orderId },
@@ -229,6 +234,7 @@ export async function getOrderById(orderId: string) {
 
 // ---- Add Payment (supports split payments) ----
 export async function addOrderPayment(orderId: string, payments: PaymentInput[]) {
+    await requireAuth()
     if (!orderId || payments.length === 0) {
         return { success: false, error: "Datos incompletos" }
     }
@@ -336,6 +342,7 @@ type StatusUpdateInput = {
 }
 
 export async function updateOrderStatus(orderId: string, newStatus: string, extra?: StatusUpdateInput) {
+    await requireAuth()
     try {
         await prisma.$transaction(async (tx: any) => {
             const order = await tx.customerOrder.findUnique({
@@ -575,6 +582,7 @@ export async function updateOrderStatus(orderId: string, newStatus: string, extr
 
 // ---- Cancel Order ----
 export async function cancelOrder(orderId: string) {
+    await requireAuth()
     try {
         await prisma.$transaction(async (tx: any) => {
             const order = await tx.customerOrder.findUnique({
@@ -648,6 +656,7 @@ export async function cancelOrder(orderId: string) {
 
 // ---- Get Order Summary (for dashboard) ----
 export async function getOrdersSummary() {
+    await requireAuth()
     try {
         const orders = await prisma.customerOrder.findMany({
             where: {
@@ -683,6 +692,7 @@ export async function getOrdersSummary() {
 // ---- Release Reserved Stock (Manual) ----
 // Makes a reserved batch available for normal sale
 export async function releaseReservedStock(orderId: string) {
+    await requireAuth()
     try {
         await prisma.$transaction(async (tx: any) => {
             const order = await tx.customerOrder.findUnique({
@@ -726,6 +736,7 @@ export async function releaseReservedStock(orderId: string) {
 // ---- Auto-Release Expired Orders (7+ days without pickup) ----
 // Called on orders page load to automatically release reservations > 7 days old
 export async function autoReleaseExpiredOrders() {
+    await requireAuth()
     try {
         const sevenDaysAgo = new Date()
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)

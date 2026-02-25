@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getContacts(type?: "PROVIDER" | "CLIENT") {
+    await requireAuth()
     try {
         const where = type ? { type } : {}
         const contacts = await prisma.contact.findMany({
@@ -18,6 +20,7 @@ export async function getContacts(type?: "PROVIDER" | "CLIENT") {
 }
 
 export async function createContact(formData: FormData) {
+    await requireAuth()
     const name = formData.get("name") as string
     const type = formData.get("type") as "PROVIDER" | "CLIENT"
     const govId = formData.get("govId") as string

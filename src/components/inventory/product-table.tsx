@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 import {
     Table,
     TableBody,
@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Package, Search, MoreHorizontal, Pencil, Trash2, AlertTriangle } from "lucide-react"
+import { Package, Search, MoreHorizontal, Pencil, Trash2, AlertTriangle, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -35,26 +35,42 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+const ITEMS_PER_PAGE = 25
+
 export function ProductTable({ products }: { products: any[] }) {
     const [search, setSearch] = useState("")
     const [brandFilter, setBrandFilter] = useState("ALL")
     const [editingProduct, setEditingProduct] = useState<any>(null)
     const [deletingProduct, setDeletingProduct] = useState<any>(null)
+    const [currentPage, setCurrentPage] = useState(1)
 
     // Extract unique brands for filter
     const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)))
 
-    const filteredProducts = products.filter(prod => {
-        const matchesSearch = (
-            prod.name.toLowerCase().includes(search.toLowerCase()) ||
-            prod.sku?.toLowerCase().includes(search.toLowerCase()) ||
-            prod.brand?.toLowerCase().includes(search.toLowerCase()) ||
-            prod.description?.toLowerCase().includes(search.toLowerCase())
-        )
-        const matchesBrand = brandFilter === "ALL" || prod.brand === brandFilter
+    const filteredProducts = useMemo(() => {
+        return products.filter(prod => {
+            const matchesSearch = (
+                prod.name.toLowerCase().includes(search.toLowerCase()) ||
+                prod.sku?.toLowerCase().includes(search.toLowerCase()) ||
+                prod.brand?.toLowerCase().includes(search.toLowerCase()) ||
+                prod.description?.toLowerCase().includes(search.toLowerCase())
+            )
+            const matchesBrand = brandFilter === "ALL" || prod.brand === brandFilter
 
-        return matchesSearch && matchesBrand
-    })
+            return matchesSearch && matchesBrand
+        })
+    }, [products, search, brandFilter])
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [search, brandFilter])
+
+    // Pagination calculations
+    const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE))
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, filteredProducts.length)
+    const paginatedProducts = filteredProducts.slice(startIndex, endIndex)
 
     const handleDelete = async () => {
         if (!deletingProduct) return
@@ -104,7 +120,7 @@ export function ProductTable({ products }: { products: any[] }) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredProducts.map((prod: any) => (
+                        {paginatedProducts.map((prod: any) => (
                             <TableRow key={prod.id}>
                                 <TableCell className="font-mono text-xs text-muted-foreground">
                                     {prod.sku || "N/A"}
@@ -151,7 +167,7 @@ export function ProductTable({ products }: { products: any[] }) {
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {filteredProducts.length === 0 && (
+                        {paginatedProducts.length === 0 && (
                             <TableRow>
                                 <TableCell colSpan={7} className="h-24 text-center">
                                     No se encontraron productos.
@@ -161,8 +177,55 @@ export function ProductTable({ products }: { products: any[] }) {
                     </TableBody>
                 </Table>
             </div>
-            <div className="text-sm text-muted-foreground">
-                Mostrando {filteredProducts.length} producto(s)
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                    Mostrando {filteredProducts.length > 0 ? startIndex + 1 : 0}–{endIndex} de {filteredProducts.length} producto(s)
+                </div>
+                {totalPages > 1 && (
+                    <div className="flex items-center gap-1">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setCurrentPage(1)}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            disabled={currentPage === 1}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm px-3 py-1 min-w-[80px] text-center">
+                            Pág. {currentPage} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            disabled={currentPage === totalPages}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setCurrentPage(totalPages)}
+                            disabled={currentPage === totalPages}
+                        >
+                            <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Edit Dialog */}

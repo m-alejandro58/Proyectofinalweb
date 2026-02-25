@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createProduct } from "@/app/actions/inventory"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
 import {
     Select,
     SelectContent,
@@ -44,12 +45,25 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
     const [loading, setLoading] = useState(false)
     const [category, setCategory] = useState("")
     const [subcategory, setSubcategory] = useState("")
+    const [hasInitialStock, setHasInitialStock] = useState(false)
+    const [initialQuantity, setInitialQuantity] = useState("")
+    const [unitCost, setUnitCost] = useState("")
+
+    const totalValue = useMemo(() => {
+        const qty = Number(initialQuantity) || 0
+        const cost = Number(unitCost) || 0
+        return qty * cost
+    }, [initialQuantity, unitCost])
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setLoading(true)
 
         const formData = new FormData(event.currentTarget)
+        formData.set("hasInitialStock", hasInitialStock ? "true" : "false")
+        formData.set("initialQuantity", initialQuantity)
+        formData.set("unitCost", unitCost)
+
         const res = await createProduct(formData)
 
         setLoading(false)
@@ -57,6 +71,9 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
             setOpen(false)
             setCategory("")
             setSubcategory("")
+            setHasInitialStock(false)
+            setInitialQuantity("")
+            setUnitCost("")
             if (onSuccess && res.data) {
                 onSuccess(res.data)
             }
@@ -72,7 +89,7 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
                     <Plus className="h-4 w-4" /> {onSuccess ? "Nuevo" : "Nuevo Producto"}
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[550px]">
+            <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Mantenimiento de Productos</DialogTitle>
                     <DialogDescription>
@@ -176,6 +193,67 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
                                 placeholder="Detalles del producto"
                                 className="col-span-3"
                             />
+                        </div>
+
+                        {/* Initial Stock Section */}
+                        <div className="border-t pt-4 mt-2">
+                            <div className="flex items-center justify-between mb-4">
+                                <div>
+                                    <Label className="text-sm font-medium">¿Tiene stock actual?</Label>
+                                    <p className="text-xs text-muted-foreground">Ingrese inventario existente que ya posea</p>
+                                </div>
+                                <Switch
+                                    checked={hasInitialStock}
+                                    onCheckedChange={setHasInitialStock}
+                                />
+                            </div>
+
+                            {hasInitialStock && (
+                                <div className="space-y-4 p-4 rounded-lg bg-muted/50 border border-dashed">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="initialQuantity" className="text-right">
+                                            Cantidad
+                                        </Label>
+                                        <Input
+                                            id="initialQuantity"
+                                            type="number"
+                                            min="1"
+                                            placeholder="Ej. 10"
+                                            className="col-span-3"
+                                            value={initialQuantity}
+                                            onChange={(e) => setInitialQuantity(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="unitCost" className="text-right">
+                                            Costo Unit.
+                                        </Label>
+                                        <div className="col-span-3 relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                                            <Input
+                                                id="unitCost"
+                                                type="number"
+                                                min="0"
+                                                step="100"
+                                                placeholder="Ej. 50000"
+                                                className="pl-7"
+                                                value={unitCost}
+                                                onChange={(e) => setUnitCost(e.target.value)}
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    {totalValue > 0 && (
+                                        <div className="text-right pr-1">
+                                            <span className="text-sm text-muted-foreground">Valor Total: </span>
+                                            <span className="text-lg font-bold text-primary">
+                                                ${totalValue.toLocaleString('es-CO')}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     <DialogFooter>

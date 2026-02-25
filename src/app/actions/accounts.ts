@@ -2,10 +2,12 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export type AccountType = "CASH" | "BANK" | "CREDIT" | "RECEIVABLE" | "LOAN"
 
 export async function getFinancialAccounts() {
+    await requireAuth()
     try {
         const accounts = await prisma.financialAccount.findMany({
             orderBy: { createdAt: 'desc' }
@@ -18,6 +20,7 @@ export async function getFinancialAccounts() {
 }
 
 export async function createFinancialAccount(formData: FormData) {
+    await requireAuth()
     const name = formData.get("name") as string
     const type = formData.get("type") as AccountType
     const description = formData.get("description") as string
@@ -48,6 +51,7 @@ export async function createFinancialAccount(formData: FormData) {
 }
 
 export async function updateFinancialAccount(id: string, data: { name?: string, creditLimit?: number }) {
+    await requireAuth()
     if (!id) return { success: false, error: "ID de cuenta requerido" }
 
     try {

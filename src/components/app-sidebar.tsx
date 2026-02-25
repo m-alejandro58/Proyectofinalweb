@@ -16,7 +16,9 @@ import {
     CreditCard,
     Truck,
     RotateCcw,
-    ClipboardList
+    ClipboardList,
+    ShieldAlert,
+    Warehouse
 } from "lucide-react"
 
 import {
@@ -53,6 +55,16 @@ const items = [
         title: "Devoluciones",
         url: "/returns",
         icon: RotateCcw,
+    },
+    {
+        title: "Reclamaciones",
+        url: "/claims",
+        icon: ShieldAlert,
+    },
+    {
+        title: "MercadoLibre FULL",
+        url: "/full",
+        icon: Warehouse,
     },
     {
         title: "Compras & Proveedores",

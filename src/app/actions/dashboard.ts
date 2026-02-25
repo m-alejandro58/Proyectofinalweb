@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) {
+    await requireAuth()
     try {
         const now = new Date()
         const start = dateRange?.from || startOfMonth(now)

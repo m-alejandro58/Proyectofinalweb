@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function receiveBatch(batchId: string) {
+    await requireAuth()
     try {
         await prisma.$transaction(async (tx: any) => {
             const batch = await tx.inventoryBatch.findUnique({ where: { id: batchId } })

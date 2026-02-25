@@ -88,6 +88,7 @@ model Contact {
   sales          Sale[]          // As Client
   customerOrders CustomerOrder[] // Orders placed by this client
   supplierOrders CustomerOrder[] @relation("OrderProvider") // Orders fulfilled by this provider
+  providerClaims ProviderClaim[] @relation("ClaimProvider") // Claims against this provider
 }
 
 // ---------------------------------------------------------
@@ -112,6 +113,9 @@ model Product {
   updatedAt   DateTime @updatedAt
   
   batches     InventoryBatch[]
+  fullInventory FullInventory[]
+  
+  stockFull   Int      @default(0) // Unidades en bodega MercadoLibre FULL (incluidas en stockTotal)
 }
 
 model InventoryBatch {
@@ -125,11 +129,57 @@ model InventoryBatch {
   
   status      String   // TRANSIT, AVAILABLE, SOLD_OUT, RESERVED
   
-  purchase    Purchase @relation(fields: [purchaseId], references: [id])
-  purchaseId  String
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id])
+  purchaseId  String?
   
   arrivalDate DateTime? // When it physically arrives
   createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------
+// MERCADOLIBRE FULL INVENTORY
+// ---------------------------------------------------------
+
+model FullShipment {
+  id           String          @id @default(uuid())
+  shippingCost Float           @default(0) // Costo total del envío (paquete)
+  note         String?         // Opcional: "Caja 1", "Guía #123"
+  
+  status       String          @default("SHIPPED") 
+  // SHIPPED -> RECEIVED (todos los items pasan a IN_WAREHOUSE)
+  
+  sentAt       DateTime        @default(now())
+  arrivedAt    DateTime?
+  
+  items        FullInventory[]
+  
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model FullInventory {
+  id              String        @id @default(uuid())
+  
+  shipment        FullShipment? @relation(fields: [shipmentId], references: [id])
+  shipmentId      String?
+  
+  product         Product       @relation(fields: [productId], references: [id])
+  productId       String
+  productName     String   // Snapshot del nombre
+  
+  quantitySent    Int      // Unidades enviadas
+  quantityInStock Int      // Unidades aún en bodega FULL
+  quantitySold    Int      @default(0) // Unidades vendidas desde FULL
+  
+  unitCost        Float    // Costo unitario
+  
+  status          String   @default("SHIPPING") // SHIPPING, IN_WAREHOUSE, SOLD_OUT, RETURNED
+  
+  sentAt          DateTime @default(now())
+  arrivedAt       DateTime? // Inicio del conteo de días en bodega
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ---------------------------------------------------------
@@ -238,6 +288,7 @@ model Return {
   
   // Items devueltos
   items           ReturnItem[]
+  providerClaims  ProviderClaim[] // Claims originated from this return
   
   // Fechas
   requestedAt     DateTime @default(now())
@@ -372,6 +423,59 @@ model OrderPayment {
   
   date      DateTime @default(now())
   notes     String?
+}
+
+// ---------------------------------------------------------
+// PROVIDER CLAIMS (RECLAMACIONES A PROVEEDORES)
+// ---------------------------------------------------------
+
+model ProviderClaim {
+  id              String   @id @default(uuid())
+  type            String   // SWAP, REPLACEMENT, REFUND
+  
+  // Producto afectado
+  productName     String
+  productId       String?
+  quantity        Int      @default(1)
+  
+  // Proveedor (Amazon, MercadoLibre, etc.)
+  provider        Contact  @relation("ClaimProvider", fields: [providerId], references: [id])
+  providerId      String
+  
+  // Vinculación con devolución del cliente (opcional)
+  customerReturn  Return?  @relation(fields: [customerReturnId], references: [id])
+  customerReturnId String?
+  
+  // Compra original
+  originalPurchaseId String?
+  
+  // SWAP: recompra
+  reorderAmount      Float?
+  reorderPurchaseId  String?
+  
+  // SWAP/REFUND: reembolso del proveedor
+  refundAmount       Float?
+  refundAccountId    String?  // Cuenta donde cae el reembolso (ej. Saldo Amazon)
+  
+  // Estado
+  status          String   @default("INITIATED")
+  // SWAP:        INITIATED → REORDERED → REPLACEMENT_RECEIVED → RETURNED_TO_PROVIDER → REFUNDED → CLOSED
+  // REPLACEMENT: INITIATED → RETURNED_TO_PROVIDER → REPLACEMENT_RECEIVED → CLOSED
+  // REFUND:      INITIATED → RETURNED_TO_PROVIDER → REFUNDED → CLOSED
+  
+  reason          String   // "Defecto de fábrica", "Garantía", etc.
+  notes           String?
+  
+  // Fechas por etapa
+  initiatedAt             DateTime @default(now())
+  reorderedAt             DateTime?
+  replacementReceivedAt   DateTime?
+  returnedToProviderAt    DateTime?
+  refundedAt              DateTime?
+  closedAt                DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // ---------------------------------------------------------

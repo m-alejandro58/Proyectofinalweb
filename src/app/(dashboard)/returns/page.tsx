@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { CreateReturnDialog } from "@/components/returns/create-return-dialog"
 import { ProcessReturnDialog } from "@/components/returns/process-return-dialog"
+import { CreateClaimDialog } from "@/components/claims/create-claim-dialog"
 
 export default async function ReturnsPage() {
     const { data: returns } = await getReturns()
@@ -81,7 +82,21 @@ export default async function ReturnsPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         {r.status === 'PENDING' && <ProcessReturnDialog returnData={r} />}
-                                        {r.status === 'COMPLETED' && <span className="text-sm text-green-600">✓ Procesado</span>}
+                                        {r.status === 'COMPLETED' && (
+                                            <div className="flex items-center gap-2 justify-end">
+                                                <span className="text-sm text-green-600">✓ Procesado</span>
+                                                {r.items?.some((item: any) => item.productCondition === 'DEFECTIVE' || item.productCondition === 'DAMAGED') && (
+                                                    <CreateClaimDialog
+                                                        prefillData={{
+                                                            customerReturnId: r.id,
+                                                            productName: r.items[0]?.productName || 'Producto',
+                                                            productId: r.items[0]?.productId || undefined,
+                                                            quantity: r.items.reduce((sum: number, i: any) => sum + i.quantity, 0),
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
                                         {r.status === 'REJECTED' && <span className="text-sm text-red-600">✗ Rechazado</span>}
                                     </TableCell>
                                 </TableRow>

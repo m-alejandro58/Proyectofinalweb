@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
+import { requireAuth } from "@/lib/auth-guard"
 
 export async function createProduct(formData: FormData) {
+    await requireAuth()
     const sku = formData.get("sku") as string
     const name = formData.get("name") as string
     const minStock = Number(formData.get("minStock")) || 5
@@ -11,6 +13,11 @@ export async function createProduct(formData: FormData) {
     const brand = formData.get("brand") as string
     const category = formData.get("category") as string
     const subcategory = formData.get("subcategory") as string
+
+    // Optional initial stock
+    const hasInitialStock = formData.get("hasInitialStock") === "true"
+    const initialQuantity = Number(formData.get("initialQuantity")) || 0
+    const unitCost = Number(formData.get("unitCost")) || 0
 
     // Check if sku exists (if provided)
     if (sku) {
@@ -30,9 +37,23 @@ export async function createProduct(formData: FormData) {
                 category,
                 subcategory,
                 minStock,
-                stockTotal: 0
+                stockTotal: hasInitialStock ? initialQuantity : 0
             }
         })
+
+        // If initial stock provided, create an inventory batch
+        if (hasInitialStock && initialQuantity > 0 && unitCost > 0) {
+            await prisma.inventoryBatch.create({
+                data: {
+                    productId: product.id,
+                    quantity: initialQuantity,
+                    initialQty: initialQuantity,
+                    unitCost: unitCost,
+                    status: "AVAILABLE",
+                    arrivalDate: new Date()
+                }
+            })
+        }
 
         revalidatePath('/inventory')
         return { success: true, data: product }
@@ -42,9 +63,8 @@ export async function createProduct(formData: FormData) {
     }
 }
 
-// ... (existing code)
-
 export async function getProducts() {
+    await requireAuth()
     try {
         const products = await prisma.product.findMany({
             include: {
@@ -59,6 +79,7 @@ export async function getProducts() {
 }
 
 export async function updateProduct(id: string, formData: FormData) {
+    await requireAuth()
     const sku = formData.get("sku") as string
     const name = formData.get("name") as string
     const minStock = Number(formData.get("minStock")) || 5
@@ -102,7 +123,93 @@ export async function updateProduct(id: string, formData: FormData) {
     }
 }
 
+export async function adjustProductStock(
+    productId: string,
+    newQuantity: number,
+    newUnitCost: number,
+    reason: string
+) {
+    await requireAuth()
+
+    if (!reason || reason.trim().length === 0) {
+        return { success: false, error: "Debe proporcionar un motivo para el ajuste" }
+    }
+
+    if (newQuantity < 0) {
+        return { success: false, error: "La cantidad no puede ser negativa" }
+    }
+
+    if (newUnitCost < 0) {
+        return { success: false, error: "El costo no puede ser negativo" }
+    }
+
+    try {
+        const product = await prisma.product.findUnique({
+            where: { id: productId },
+            include: { batches: { where: { status: { in: ["AVAILABLE", "RESERVED"] } } } }
+        })
+
+        if (!product) {
+            return { success: false, error: "Producto no encontrado" }
+        }
+
+        await prisma.$transaction(async (tx: any) => {
+            // Mark all existing AVAILABLE batches as SOLD_OUT (archive them)
+            await tx.inventoryBatch.updateMany({
+                where: {
+                    productId,
+                    status: { in: ["AVAILABLE"] }
+                },
+                data: { status: "SOLD_OUT" }
+            })
+
+            // Create new batch with the adjusted values
+            if (newQuantity > 0) {
+                await tx.inventoryBatch.create({
+                    data: {
+                        productId,
+                        quantity: newQuantity,
+                        initialQty: newQuantity,
+                        unitCost: newUnitCost,
+                        status: "AVAILABLE",
+                        arrivalDate: new Date()
+                    }
+                })
+            }
+
+            // Update product stock total
+            // Calculate: reserved stock (keep it) + new available stock
+            const reservedStock = product.batches
+                .filter((b: any) => b.status === "RESERVED")
+                .reduce((sum: number, b: any) => sum + b.quantity, 0)
+
+            await tx.product.update({
+                where: { id: productId },
+                data: {
+                    stockTotal: newQuantity + reservedStock
+                }
+            })
+
+            // Log the adjustment as a transaction for auditing
+            await tx.transaction.create({
+                data: {
+                    description: `Ajuste de inventario: ${product.name} → Cant: ${newQuantity}, Costo: $${newUnitCost.toLocaleString()}. Motivo: ${reason}`,
+                    amount: newQuantity * newUnitCost,
+                    date: new Date()
+                }
+            })
+        })
+
+        revalidatePath('/inventory')
+        return { success: true }
+    } catch (e) {
+        console.error(e)
+        return { success: false, error: "Error al ajustar inventario" }
+    }
+}
+
 export async function deleteProduct(id: string) {
+    await requireAuth()
     try {
         // Check for dependencies
         const product = await prisma.product.findUnique({
