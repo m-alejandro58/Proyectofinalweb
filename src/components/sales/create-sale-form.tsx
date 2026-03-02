@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createSale } from "@/app/actions/sales"
-import { Plus, Trash2, Calculator } from "lucide-react"
+import { Plus, Trash2, Calculator, Info } from "lucide-react"
 import {
     Table,
     TableBody,
@@ -25,16 +25,37 @@ import {
 } from "@/components/ui/table"
 import { CreateContactDialog } from "@/components/contacts/create-contact-dialog"
 
+type SaleItem = {
+    productId: string
+    quantity: number
+    unitPrice: number
+    warranty: number
+    serial: string
+    itemFee: number       // per-item platform commission
+    itemShipping: number  // per-item shipping cost
+}
+
 type Props = {
     clients: any[]
     accounts: any[]
     products: any[]
 }
 
+// Platform commission rates
+const PLATFORM_FEE_RATES: Record<string, number> = {
+    MERCADOLIBRE: 0.155,
+    RAPPI: 0.1,
+    WEBSITE: 0.05,
+    LUEGOPAGO: 0.08,
+    PRESENCIAL: 0,
+    FACEBOOK: 0,
+    WHATSAPP: 0,
+}
+
 export function CreateSaleForm({ clients: initialClients, accounts, products }: Props) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
-    const [items, setItems] = useState<{ productId: string, quantity: number, unitPrice: number, warranty: number, serial: string }[]>([])
+    const [items, setItems] = useState<SaleItem[]>([])
 
     // Local clients state
     const [clients, setClients] = useState(initialClients)
@@ -46,12 +67,8 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
     const [channel, setChannel] = useState("PRESENCIAL")
     const [paymentMethod, setPaymentMethod] = useState("")
 
-    // Calculator State
-    const [grossAmount, setGrossAmount] = useState(0) // Total Sale Price
-    const [shippingCost, setShippingCost] = useState(0)
+    // Calculator State (all derived from items)
     const [taxes, setTaxes] = useState(0)
-    const [platformFee, setPlatformFee] = useState(0)
-    const [netAmount, setNetAmount] = useState(0)
 
     // Line Input State
     const [currentProduct, setCurrentProduct] = useState("")
@@ -59,12 +76,17 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
     const [currentPrice, setCurrentPrice] = useState(0)
     const [currentWarranty, setCurrentWarranty] = useState(12)
     const [currentSerial, setCurrentSerial] = useState("")
+    const [currentFee, setCurrentFee] = useState(0)
+    const [currentShipping, setCurrentShipping] = useState(0)
 
     // Product search state
     const [productSearch, setProductSearch] = useState("")
     const [showResults, setShowResults] = useState(false)
 
-    // Filter products by search query (name, sku, brand, category)
+    // Per-item mode toggle (shown when channel has commission)
+    const hasCommission = (PLATFORM_FEE_RATES[channel] ?? 0) > 0
+
+    // Filter products by search query
     const filteredProducts = useMemo(() => {
         if (!productSearch.trim()) return products
         const q = productSearch.toLowerCase()
@@ -93,48 +115,25 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
         setClientId(newClient.id)
     }
 
-    // Update calculator when items change
+    // Auto-calculate fee for current item when price/channel changes
     useEffect(() => {
-        const total = items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice), 0)
-        setGrossAmount(total)
-    }, [items])
+        const rate = PLATFORM_FEE_RATES[channel] ?? 0
+        setCurrentFee(Math.round(currentPrice * currentQty * rate))
+    }, [currentPrice, currentQty, channel])
 
-    // Recalculate Fees when Channel or Gross changes
-    useEffect(() => {
-        let fee = 0
-        if (channel === "MERCADOLIBRE") {
-            // 15.5% + Envío (approx handled separately?)
-            fee = Math.round(grossAmount * 0.155)
-        } else if (channel === "RAPPI") {
-            fee = Math.round(grossAmount * 0.1)
-        } else if (channel === "WEBSITE") {
-            fee = Math.round(grossAmount * 0.05)
-        } else if (channel === "LUEGOPAGO") {
-            fee = Math.round(grossAmount * 0.08)
-        } else {
-            fee = 0
-        }
-        setPlatformFee(fee)
-        // Reset payment method if channel changes away from LUEGOPAGO
-        // Removed: Now payment Method is global
-    }, [grossAmount, channel])
-
-    // Calculate Net
-    useEffect(() => {
-        setNetAmount(grossAmount - platformFee - shippingCost - taxes)
-    }, [grossAmount, platformFee, shippingCost, taxes])
+    // Derived totals from items
+    const grossAmount = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+    const totalPlatformFee = items.reduce((s, i) => s + i.itemFee, 0)
+    const totalShipping = items.reduce((s, i) => s + i.itemShipping, 0)
+    const netAmount = grossAmount - totalPlatformFee - totalShipping - taxes
 
     const addItem = () => {
         if (!currentProduct || currentQty <= 0 || currentPrice <= 0) return
 
-        // Check stock locally
         const prod = products.find((p: any) => p.id === currentProduct)
-
-        if (prod) {
-            if (currentQty > prod.stockTotal) {
-                alert(`¡Error! Stock insuficiente. Solo hay ${prod.stockTotal} unidades disponibles.`)
-                return
-            }
+        if (prod && currentQty > prod.stockTotal) {
+            alert(`¡Error! Stock insuficiente. Solo hay ${prod.stockTotal} unidades disponibles.`)
+            return
         }
 
         setItems([...items, {
@@ -142,7 +141,9 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
             quantity: currentQty,
             unitPrice: currentPrice,
             warranty: currentWarranty,
-            serial: currentSerial
+            serial: currentSerial,
+            itemFee: currentFee,
+            itemShipping: currentShipping,
         }])
 
         // Reset
@@ -152,10 +153,20 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
         setCurrentPrice(0)
         setCurrentWarranty(12)
         setCurrentSerial("")
+        setCurrentFee(0)
+        setCurrentShipping(0)
     }
 
     const removeItem = (idx: number) => {
         setItems(items.filter((_, i) => i !== idx))
+    }
+
+    const updateItemFee = (idx: number, fee: number) => {
+        setItems(items.map((item, i) => i === idx ? { ...item, itemFee: fee } : item))
+    }
+
+    const updateItemShipping = (idx: number, shipping: number) => {
+        setItems(items.map((item, i) => i === idx ? { ...item, itemShipping: shipping } : item))
     }
 
     const handleSubmit = async () => {
@@ -170,8 +181,8 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
             accountId,
             channel,
             grossAmount,
-            platformFee,
-            shippingCost,
+            totalPlatformFee,
+            totalShipping,
             taxes,
             items.map(i => ({
                 productId: i.productId,
@@ -193,7 +204,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
         }
     }
 
-
+    const fmt = (n: number) => n.toLocaleString("es-CO")
 
     return (
         <div className="space-y-6">
@@ -223,9 +234,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         <div className="grid gap-2">
                             <Label>Canal de Venta</Label>
                             <Select value={channel} onValueChange={setChannel}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="PRESENCIAL">Presencial / Local</SelectItem>
                                     <SelectItem value="MERCADOLIBRE">MercadoLibre</SelectItem>
@@ -267,6 +276,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                                 </SelectContent>
                             </Select>
                         </div>
+
                         <div className="grid gap-2">
                             <Label>Factura / Ref (Opcional)</Label>
                             <Input value={invoice} onChange={e => setInvoice(e.target.value)} placeholder="N° Factura..." />
@@ -274,6 +284,7 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                     </CardContent>
                 </Card>
 
+                {/* Financial Calculator — now derived from item-level fees */}
                 <Card className="border-primary/20 bg-primary/5">
                     <CardHeader>
                         <CardTitle className="flex justify-between items-center text-primary">
@@ -282,49 +293,53 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                        {hasCommission && (
+                            <div className="flex items-start gap-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-2.5 text-xs text-blue-700 dark:text-blue-300">
+                                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                                <span>
+                                    Comisión y envío se calculan <strong>por artículo</strong>.
+                                    Edítalos en la tabla de productos.
+                                    Tasa {channel}: <strong>{((PLATFORM_FEE_RATES[channel] ?? 0) * 100).toFixed(1)}%</strong>
+                                </span>
+                            </div>
+                        )}
+
                         <div className="flex justify-between text-lg">
                             <span>Venta Bruta:</span>
-                            <span className="font-bold">${grossAmount.toLocaleString()}</span>
+                            <span className="font-bold">${fmt(grossAmount)}</span>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-1">
-                                <Label className="text-xs">Comisión ({channel}) - Editable</Label>
+
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between text-destructive">
+                                <span>Comisión plataforma:</span>
+                                <span className="font-medium">-${fmt(totalPlatformFee)}</span>
+                            </div>
+                            <div className="flex justify-between text-muted-foreground">
+                                <span>Costo de envío:</span>
+                                <span>-${fmt(totalShipping)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <Label className="text-xs">Otras Retenciones / Impuestos</Label>
                                 <Input
                                     type="number"
-                                    className="h-8 text-destructive font-medium"
-                                    value={platformFee}
-                                    onChange={e => setPlatformFee(Number(e.target.value))}
-                                />
-                            </div>
-                            <div className="grid gap-1">
-                                <Label className="text-xs">Costo Envío - Editable</Label>
-                                <Input
-                                    type="number"
-                                    className="h-8"
-                                    value={shippingCost}
-                                    onChange={e => setShippingCost(Number(e.target.value))}
+                                    className="h-7 w-32 text-right"
+                                    value={taxes}
+                                    onChange={e => setTaxes(Number(e.target.value))}
                                 />
                             </div>
                         </div>
-                        <div className="grid gap-1">
-                            <Label className="text-xs">Otras Retenciones / Impuestos</Label>
-                            <Input
-                                type="number"
-                                className="h-8"
-                                value={taxes}
-                                onChange={e => setTaxes(Number(e.target.value))}
-                            />
-                        </div>
-                        <div className="border-t pt-4 mt-4 flex justify-between text-xl font-bold">
+
+                        <div className="border-t pt-4 mt-2 flex justify-between text-xl font-bold">
                             <span>Ganancia Neta:</span>
                             <span className={netAmount > 0 ? "text-green-600" : "text-red-500"}>
-                                ${netAmount.toLocaleString()}
+                                ${fmt(netAmount)}
                             </span>
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
+            {/* Products */}
             <Card>
                 <CardHeader>
                     <CardTitle>Productos</CardTitle>
@@ -381,23 +396,36 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         )}
                     </div>
 
-                    {/* DETAILS ROW */}
-                    <div className="grid grid-cols-5 gap-2 items-end">
+                    {/* DETAILS ROW — now includes per-item fee and shipping */}
+                    <div className="grid grid-cols-7 gap-2 items-end">
                         <div className="grid gap-1">
-                            <Label>Cant.</Label>
+                            <Label className="text-xs">Cant.</Label>
                             <Input type="number" min="1" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} />
                         </div>
-                        <div className="grid gap-1">
-                            <Label>Precio Unit.</Label>
+                        <div className="grid gap-1 col-span-2">
+                            <Label className="text-xs">Precio Unit.</Label>
                             <Input type="number" min="0" value={currentPrice} onChange={e => setCurrentPrice(Number(e.target.value))} />
                         </div>
                         <div className="grid gap-1">
-                            <Label>Garantía (meses)</Label>
+                            <Label className="text-xs">Garantía (m)</Label>
                             <Input type="number" min="0" value={currentWarranty} onChange={e => setCurrentWarranty(Number(e.target.value))} />
                         </div>
                         <div className="grid gap-1">
-                            <Label>Serial (Opcional)</Label>
-                            <Input placeholder="SN123..." value={currentSerial} onChange={e => setCurrentSerial(e.target.value)} />
+                            <Label className="text-xs text-destructive">Comisión</Label>
+                            <Input
+                                type="number" min="0"
+                                value={currentFee}
+                                onChange={e => setCurrentFee(Number(e.target.value))}
+                                className="border-destructive/40"
+                            />
+                        </div>
+                        <div className="grid gap-1">
+                            <Label className="text-xs text-muted-foreground">Envío</Label>
+                            <Input
+                                type="number" min="0"
+                                value={currentShipping}
+                                onChange={e => setCurrentShipping(Number(e.target.value))}
+                            />
                         </div>
                         <div>
                             <Button onClick={addItem} type="button" className="w-full">
@@ -406,28 +434,51 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         </div>
                     </div>
                 </CardContent>
+
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Producto</TableHead>
                                 <TableHead>Serial</TableHead>
-                                <TableHead className="text-right">Garantía</TableHead>
                                 <TableHead className="text-right">Cant.</TableHead>
-                                <TableHead className="text-right">Total</TableHead>
+                                <TableHead className="text-right">Precio</TableHead>
+                                <TableHead className="text-right text-destructive">Comisión</TableHead>
+                                <TableHead className="text-right">Envío</TableHead>
+                                <TableHead className="text-right font-semibold">Neto</TableHead>
                                 <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {items.map((item, idx) => {
                                 const prod = products.find((p: any) => p.id === item.productId)
+                                const subtotal = item.quantity * item.unitPrice
+                                const netLine = subtotal - item.itemFee - item.itemShipping
                                 return (
                                     <TableRow key={idx}>
-                                        <TableCell>{prod?.name}</TableCell>
-                                        <TableCell>{item.serial || "-"}</TableCell>
-                                        <TableCell className="text-right">{item.warranty} mes</TableCell>
+                                        <TableCell className="font-medium">{prod?.name}</TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">{item.serial || "—"}</TableCell>
                                         <TableCell className="text-right">{item.quantity}</TableCell>
-                                        <TableCell className="text-right">${(item.quantity * item.unitPrice).toLocaleString()}</TableCell>
+                                        <TableCell className="text-right">${fmt(subtotal)}</TableCell>
+                                        <TableCell className="text-right text-destructive">
+                                            <Input
+                                                type="number" min="0"
+                                                value={item.itemFee}
+                                                onChange={e => updateItemFee(idx, Number(e.target.value))}
+                                                className="h-7 w-24 text-right ml-auto border-destructive/40 text-destructive"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Input
+                                                type="number" min="0"
+                                                value={item.itemShipping}
+                                                onChange={e => updateItemShipping(idx, Number(e.target.value))}
+                                                className="h-7 w-24 text-right ml-auto"
+                                            />
+                                        </TableCell>
+                                        <TableCell className={`text-right font-bold ${netLine < 0 ? "text-red-500" : "text-green-600"}`}>
+                                            ${fmt(netLine)}
+                                        </TableCell>
                                         <TableCell>
                                             <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeItem(idx)}>
                                                 <Trash2 className="h-4 w-4" />
@@ -438,9 +489,22 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                             })}
                             {items.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={8} className="text-center h-24 text-muted-foreground">
                                         Agregue productos a la venta
                                     </TableCell>
+                                </TableRow>
+                            )}
+                            {/* Totals row */}
+                            {items.length > 0 && (
+                                <TableRow className="bg-muted/30 font-semibold">
+                                    <TableCell colSpan={3}>TOTALES</TableCell>
+                                    <TableCell className="text-right">${fmt(grossAmount)}</TableCell>
+                                    <TableCell className="text-right text-destructive">-${fmt(totalPlatformFee)}</TableCell>
+                                    <TableCell className="text-right text-muted-foreground">-${fmt(totalShipping)}</TableCell>
+                                    <TableCell className={`text-right ${netAmount < 0 ? "text-red-500" : "text-green-600"}`}>
+                                        ${fmt(netAmount - taxes > 0 ? netAmount : 0)}
+                                    </TableCell>
+                                    <TableCell />
                                 </TableRow>
                             )}
                         </TableBody>

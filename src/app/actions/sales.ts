@@ -214,8 +214,9 @@ export async function createSale(
                 })
             }
 
-            // 4. Auto-create DeferredPayment for SisteCredito
-            if (channel === 'LUEGOPAGO' && paymentMethod === 'SISTECREDITO') {
+            // 4. Auto-create DeferredPayment for any SISTECREDITO sale
+            // Applies to all channels: LuegoPago, Presencial, WhatsApp, etc.
+            if (paymentMethod === 'SISTECREDITO') {
                 const saleDate = new Date()
                 const expectedDate = new Date(saleDate)
                 expectedDate.setDate(expectedDate.getDate() + 60)
@@ -223,8 +224,8 @@ export async function createSale(
                 await tx.deferredPayment.create({
                     data: {
                         saleId: sale.id,
-                        amount: netAmount,
-                        platform: 'LUEGOPAGO',
+                        amount: netAmount ?? grossAmount,
+                        platform: channel || 'PRESENCIAL',
                         paymentMethod: 'SISTECREDITO',
                         status: 'PENDING',
                         saleDate,

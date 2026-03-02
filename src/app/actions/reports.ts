@@ -41,6 +41,8 @@ export type ReportData = {
         totalProfit: number
         newClients: number
         totalPurchases: number
+        totalExpenses: number
+        expensesByCategory: { category: string; amount: number; count: number }[]
         platformBreakdown: { name: string; sales: number; commissions: number; shipping: number }[]
     }
     charts: {
@@ -167,16 +169,19 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             payMap[pm] = (payMap[pm] || 0) + sale.grossAmount
         })
 
-        // Global Expenses (for Summary Net Profit only, not applied to rows to avoid confusion)
+        // Expenses aggregation
         const totalGlobalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
-        // If filtered, we usually don't deduct global expenses, but for Summary "Profit" we need to be careful.
-        // Dashboard logic: Net = Operating - Taxes. 
-        // Here we summed net from rows. Rows don't have Global Expenses.
-        // So Summary Net Profit = Sum(Row Nets) - Global Expenses (if not filtered?)
+        const expenseCatMap: Record<string, { amount: number; count: number }> = {}
+        expenses.forEach(e => {
+            const cat = e.category || 'Sin categoría'
+            if (!expenseCatMap[cat]) expenseCatMap[cat] = { amount: 0, count: 0 }
+            expenseCatMap[cat].amount += e.amount
+            expenseCatMap[cat].count += 1
+        })
+        const expensesByCategory = Object.entries(expenseCatMap)
+            .map(([category, data]) => ({ category, amount: data.amount, count: data.count }))
+            .sort((a, b) => b.amount - a.amount)
 
-        // To match the table sum exactly, we should probably NOT deduct global expenses from the "Total Profit" 
-        // displayed IN THE TABLE context, but arguably the Scorecard should be "Real Net".
-        // Let's deduct global expenses from the Summary Scorecard, but keep Table as "Contribution".
         const isFiltered = !!(filters?.platform && filters.platform !== 'all');
         const appliedGlobalExpenses = isFiltered ? 0 : totalGlobalExpenses;
 
@@ -212,6 +217,8 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                     totalProfit: summaryNetProfit,
                     newClients: newClientsCount,
                     totalPurchases: purchasesCount,
+                    totalExpenses: totalGlobalExpenses,
+                    expensesByCategory,
                     platformBreakdown
                 },
                 charts: {

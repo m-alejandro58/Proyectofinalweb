@@ -18,7 +18,15 @@ export async function getDeferredPayments(status?: string) {
                 sale: {
                     include: {
                         client: true,
-                        depositAccount: true
+                        depositAccount: true,
+                        items: {
+                            select: {
+                                id: true,
+                                productName: true,
+                                quantity: true,
+                                unitPrice: true,
+                            }
+                        }
                     }
                 },
                 targetAccount: true

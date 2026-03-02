@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Plus, Package, Archive } from "lucide-react"
+import { Combobox } from "@/components/ui/combobox"
+import { CreateContactDialog } from "@/components/contacts/create-contact-dialog"
+import { Plus, Package, Archive, Search } from "lucide-react"
 import { createCustomerOrder } from "@/app/actions/customer-orders"
 import { getContacts } from "@/app/actions/contacts"
 import { getProducts } from "@/app/actions/inventory"
@@ -53,6 +55,10 @@ export function CreateOrderDialog({ accounts }: Props) {
     const [expectedArrival, setExpectedArrival] = useState("")
     const [notes, setNotes] = useState("")
 
+    // Product search for LAYAWAY (not CUSTOM — CUSTOM is free text)
+    const [productSearch, setProductSearch] = useState("")
+    const [showProductResults, setShowProductResults] = useState(false)
+
     // Initial payment
     const [hasAdvance, setHasAdvance] = useState(false)
     const [advanceAmount, setAdvanceAmount] = useState(0)
@@ -61,7 +67,6 @@ export function CreateOrderDialog({ accounts }: Props) {
 
     useEffect(() => {
         if (open) {
-            // Load contacts and products
             getContacts().then(res => {
                 if (res.success && res.data) {
                     setClients(res.data.filter((c: any) => c.type === "CLIENT" || c.type === "BOTH"))
@@ -69,28 +74,39 @@ export function CreateOrderDialog({ accounts }: Props) {
                 }
             })
             getProducts().then(res => {
-                if (res.success && res.data) {
-                    setProducts(res.data)
-                }
+                if (res.success && res.data) setProducts(res.data)
             })
         }
     }, [open])
 
-    // Auto-fill product name if LAYAWAY
-    useEffect(() => {
-        if (type === "LAYAWAY" && productId) {
-            const prod = products.find((p: any) => p.id === productId)
-            if (prod) {
-                setDescription(prod.name)
-            }
-        }
-    }, [productId, type, products])
+    // Filtered products for LAYAWAY search
+    const filteredProducts = useMemo(() => {
+        if (!productSearch.trim()) return products.filter((p: any) => p.stockTotal > 0)
+        const q = productSearch.toLowerCase()
+        return products.filter((p: any) =>
+            p.stockTotal > 0 && (
+                p.name?.toLowerCase().includes(q) ||
+                p.sku?.toLowerCase().includes(q) ||
+                p.brand?.toLowerCase().includes(q)
+            )
+        )
+    }, [productSearch, products])
+
+    // Client combobox items
+    const clientItems = clients.map(c => ({ value: c.id, label: c.name }))
+    const providerItems = providers.map(p => ({ value: p.id, label: p.name }))
+
+    const handleNewClient = (newClient: any) => {
+        setClients(prev => [...prev, newClient])
+        setClientId(newClient.id)
+    }
 
     const resetForm = () => {
         setType("CUSTOM")
         setClientId("")
         setDescription("")
         setProductId("")
+        setProductSearch("")
         setQuantity(1)
         setAgreedPrice(0)
         setEstimatedCost(0)
@@ -108,19 +124,16 @@ export function CreateOrderDialog({ accounts }: Props) {
             alert("Complete los campos requeridos: cliente, descripción y precio.")
             return
         }
-
         if (type === "LAYAWAY" && !productId) {
             alert("Debe seleccionar un producto para apartar.")
             return
         }
-
         if (hasAdvance && (!advanceAccountId || advanceAmount <= 0)) {
             alert("Complete los datos del abono inicial.")
             return
         }
 
         setLoading(true)
-
         const res = await createCustomerOrder({
             type,
             clientId,
@@ -164,118 +177,149 @@ export function CreateOrderDialog({ accounts }: Props) {
                     {/* Type Selector */}
                     <div className="grid grid-cols-2 gap-3">
                         <button
-                            onClick={() => setType("CUSTOM")}
-                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${type === "CUSTOM" ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-blue-500/50"
-                                }`}
+                            onClick={() => { setType("CUSTOM"); setProductId(""); setProductSearch("") }}
+                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${type === "CUSTOM" ? "border-blue-500 bg-blue-500/10" : "border-border hover:border-blue-500/50"}`}
                         >
                             <Package className={`h-5 w-5 ${type === "CUSTOM" ? "text-blue-500" : "text-muted-foreground"}`} />
                             <div className="text-left">
                                 <p className={`font-medium text-sm ${type === "CUSTOM" ? "text-blue-500" : ""}`}>Pedido Especial</p>
-                                <p className="text-xs text-muted-foreground">Pedir a proveedor</p>
+                                <p className="text-xs text-muted-foreground">Producto no disponible, pedir a proveedor</p>
                             </div>
                         </button>
                         <button
-                            onClick={() => setType("LAYAWAY")}
-                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${type === "LAYAWAY" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-purple-500/50"
-                                }`}
+                            onClick={() => { setType("LAYAWAY"); setDescription("") }}
+                            className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${type === "LAYAWAY" ? "border-purple-500 bg-purple-500/10" : "border-border hover:border-purple-500/50"}`}
                         >
                             <Archive className={`h-5 w-5 ${type === "LAYAWAY" ? "text-purple-500" : "text-muted-foreground"}`} />
                             <div className="text-left">
                                 <p className={`font-medium text-sm ${type === "LAYAWAY" ? "text-purple-500" : ""}`}>Apartado</p>
-                                <p className="text-xs text-muted-foreground">Separar de inventario</p>
+                                <p className="text-xs text-muted-foreground">Separar producto que ya tengo en bodega</p>
                             </div>
                         </button>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
-                        {/* Client */}
-                        <div className="grid gap-2">
-                            <Label>Cliente *</Label>
-                            <Select value={clientId} onValueChange={setClientId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Seleccione cliente" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {clients.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Product (LAYAWAY) */}
-                        {type === "LAYAWAY" && (
-                            <div className="grid gap-2">
-                                <Label>Producto a Separar *</Label>
-                                <Select value={productId} onValueChange={setProductId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione producto" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {products.filter((p: any) => p.stockTotal > 0).map((p: any) => (
-                                            <SelectItem key={p.id} value={p.id}>
-                                                {p.name} (Stock: {p.stockTotal})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                    {/* ── Cliente (searchable combobox + create new) ── */}
+                    <div className="grid gap-2">
+                        <Label>Cliente *</Label>
+                        <div className="flex gap-2">
+                            <div className="flex-1">
+                                <Combobox
+                                    items={clientItems}
+                                    value={clientId}
+                                    onChange={setClientId}
+                                    placeholder="Buscar cliente..."
+                                />
                             </div>
+                            <CreateContactDialog onSuccess={handleNewClient} />
+                        </div>
+                        {clientId && (
+                            <p className="text-xs text-green-600">
+                                ✓ {clients.find(c => c.id === clientId)?.name}
+                            </p>
                         )}
+                    </div>
 
-                        {/* Supplier (CUSTOM) */}
+                    {/* ── CUSTOM: Descripción libre del producto ── */}
+                    {type === "CUSTOM" && (
+                        <div className="space-y-3 rounded-lg border border-blue-200/50 bg-blue-50/30 dark:bg-blue-950/10 p-3">
+                            <p className="text-xs font-semibold text-blue-600">📦 Producto a Pedir (no tiene que estar en inventario)</p>
+                            <div className="grid gap-2">
+                                <Label>Descripción del producto *</Label>
+                                <Textarea
+                                    value={description}
+                                    onChange={e => setDescription(e.target.value)}
+                                    placeholder="Ej: Audífonos Sony WH-1000XM5 negros, cable USB-C incluido..."
+                                    rows={2}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Describe el producto con el mayor detalle posible para el proveedor.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── LAYAWAY: Buscar producto en inventario ── */}
+                    {type === "LAYAWAY" && (
+                        <div className="space-y-3 rounded-lg border border-purple-200/50 bg-purple-50/30 dark:bg-purple-950/10 p-3">
+                            <p className="text-xs font-semibold text-purple-600">📦 Producto a Apartar (debe estar en inventario)</p>
+                            <div className="grid gap-2 relative">
+                                <Label>Buscar producto *</Label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        className="pl-9"
+                                        placeholder="Nombre, SKU, marca..."
+                                        value={productSearch}
+                                        onChange={e => {
+                                            setProductSearch(e.target.value)
+                                            setShowProductResults(true)
+                                            setProductId("")
+                                            setDescription("")
+                                        }}
+                                        onFocus={() => setShowProductResults(true)}
+                                    />
+                                </div>
+                                {showProductResults && productSearch.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-[200px] overflow-y-auto bg-popover border rounded-md shadow-lg">
+                                        {filteredProducts.length === 0 ? (
+                                            <div className="p-3 text-sm text-muted-foreground text-center">Sin resultados</div>
+                                        ) : (
+                                            filteredProducts.map((p: any) => (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    className="w-full text-left px-3 py-2 hover:bg-accent flex justify-between items-center text-sm border-b last:border-b-0"
+                                                    onClick={() => {
+                                                        setProductId(p.id)
+                                                        setProductSearch(p.name)
+                                                        setDescription(p.name)
+                                                        setShowProductResults(false)
+                                                    }}
+                                                >
+                                                    <div>
+                                                        <span className="font-medium">{p.name}</span>
+                                                        {p.sku && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.sku}</span>}
+                                                        {p.brand && <span className="ml-2 text-xs text-muted-foreground">• {p.brand}</span>}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-green-600 ml-2">Stock: {p.stockTotal}</span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                                {productId && (
+                                    <p className="text-xs text-green-600">
+                                        ✓ Seleccionado: {products.find(p => p.id === productId)?.name}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        {/* Supplier (CUSTOM only) */}
                         {type === "CUSTOM" && (
                             <div className="grid gap-2">
                                 <Label>Proveedor</Label>
-                                <Select value={providerId} onValueChange={setProviderId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione proveedor" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {providers.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    items={providerItems}
+                                    value={providerId}
+                                    onChange={setProviderId}
+                                    placeholder="Buscar proveedor..."
+                                />
                             </div>
                         )}
 
-                        {/* Product (CUSTOM - optional, for inventory tracking) */}
+                        {/* Estimated arrival (CUSTOM only) */}
                         {type === "CUSTOM" && (
                             <div className="grid gap-2">
-                                <Label>Producto (para inventario)</Label>
-                                <Select value={productId} onValueChange={(v) => {
-                                    setProductId(v)
-                                    const prod = products.find((p: any) => p.id === v)
-                                    if (prod && !description) setDescription(prod.name)
-                                }}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione producto..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {products.map((p: any) => (
-                                            <SelectItem key={p.id} value={p.id}>
-                                                {p.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    Al llegar, se agregará al inventario de este producto.
-                                </p>
+                                <Label>Fecha Est. de Llegada</Label>
+                                <Input type="date" value={expectedArrival} onChange={e => setExpectedArrival(e.target.value)} />
                             </div>
                         )}
                     </div>
 
-                    {/* Description */}
-                    <div className="grid gap-2">
-                        <Label>Descripción del producto *</Label>
-                        <Textarea
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                            placeholder={type === "CUSTOM" ? "¿Qué producto necesita el cliente?" : "Nombre o descripción del producto separado"}
-                        />
-                    </div>
-
+                    {/* Pricing */}
                     <div className="grid gap-4 md:grid-cols-3">
                         <div className="grid gap-2">
                             <Label>Cantidad</Label>
@@ -292,13 +336,6 @@ export function CreateOrderDialog({ accounts }: Props) {
                             </div>
                         )}
                     </div>
-
-                    {type === "CUSTOM" && (
-                        <div className="grid gap-2">
-                            <Label>Fecha Est. de Llegada</Label>
-                            <Input type="date" value={expectedArrival} onChange={e => setExpectedArrival(e.target.value)} />
-                        </div>
-                    )}
 
                     <div className="grid gap-2">
                         <Label>Notas</Label>
@@ -327,9 +364,7 @@ export function CreateOrderDialog({ accounts }: Props) {
                                 <div className="grid gap-2">
                                     <Label className="text-xs">Método de Pago</Label>
                                     <Select value={advanceMethod} onValueChange={setAdvanceMethod}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="Efectivo">Efectivo</SelectItem>
                                             <SelectItem value="Transferencia">Transferencia</SelectItem>
@@ -341,9 +376,7 @@ export function CreateOrderDialog({ accounts }: Props) {
                                 <div className="grid gap-2">
                                     <Label className="text-xs">Cuenta Destino</Label>
                                     <Select value={advanceAccountId} onValueChange={setAdvanceAccountId}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="¿Dónde entra?" />
-                                        </SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="¿Dónde entra?" /></SelectTrigger>
                                         <SelectContent>
                                             {accounts.map((a: any) => (
                                                 <SelectItem key={a.id} value={a.id}>{a.name} ({a.type})</SelectItem>

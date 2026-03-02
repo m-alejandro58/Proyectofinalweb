@@ -75,7 +75,7 @@ export function CreateAccountDialog() {
                         </div>
                         <div className="grid gap-2">
                             <Label>Saldo Inicial / Cupo</Label>
-                            <Input name="balance" type="number" step="0.01" defaultValue="0" />
+                            <Input name="initialBalance" type="number" step="0.01" defaultValue="0" />
                         </div>
                         <div className="grid gap-2">
                             <Label>Límite de Crédito (Opcional)</Label>

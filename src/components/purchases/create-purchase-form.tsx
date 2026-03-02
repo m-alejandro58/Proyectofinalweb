@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,9 +50,37 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
     const [currentQty, setCurrentQty] = useState(1)
     const [currentCost, setCurrentCost] = useState(0)
 
+    // Product search state
+    const [productSearch, setProductSearch] = useState("")
+    const [showResults, setShowResults] = useState(false)
+
+    const filteredProducts = useMemo(() => {
+        if (!productSearch.trim()) return products
+        const q = productSearch.toLowerCase()
+        return products.filter((p: any) =>
+            p.name?.toLowerCase().includes(q) ||
+            p.sku?.toLowerCase().includes(q) ||
+            p.brand?.toLowerCase().includes(q) ||
+            p.category?.toLowerCase().includes(q)
+        )
+    }, [productSearch, products])
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            const target = e.target as HTMLElement
+            if (!target.closest(".purchase-search-container")) {
+                setShowResults(false)
+            }
+        }
+        document.addEventListener("mousedown", handler)
+        return () => document.removeEventListener("mousedown", handler)
+    }, [])
+
     const handleNewProduct = (newProd: any) => {
         setProducts([...products, newProd])
         setCurrentProduct(newProd.id)
+        setProductSearch(`${newProd.name} ${newProd.sku ? `(${newProd.sku})` : ""}`)
     }
 
     const addItem = () => {
@@ -61,6 +89,7 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
 
         // Reset inputs
         setCurrentProduct("")
+        setProductSearch("")
         setCurrentQty(1)
         setCurrentCost(0)
     }
@@ -140,22 +169,54 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
 
                 <Card>
                     <CardContent className="pt-6 grid gap-4 bg-muted/20">
+                        {/* PRODUCT SEARCH */}
                         <div className="flex items-end gap-2">
-                            <div className="grid gap-2 flex-1">
-                                <Label>Producto</Label>
-                                <Select value={currentProduct} onValueChange={setCurrentProduct}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Buscar producto..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {products.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>{p.name} ({p.sku})</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                            <div className="grid gap-1 flex-1 relative purchase-search-container">
+                                <Label>Buscar Producto (nombre, SKU, marca...)</Label>
+                                <Input
+                                    placeholder="Escriba para buscar..."
+                                    value={productSearch}
+                                    onChange={e => {
+                                        setProductSearch(e.target.value)
+                                        setShowResults(true)
+                                        setCurrentProduct("")
+                                    }}
+                                    onFocus={() => setShowResults(true)}
+                                    className="font-medium"
+                                    autoComplete="off"
+                                />
+                                {showResults && productSearch.length > 0 && (
+                                    <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-[250px] overflow-y-auto bg-popover border rounded-md shadow-lg">
+                                        {filteredProducts.length === 0 ? (
+                                            <div className="p-3 text-sm text-muted-foreground text-center">Sin resultados para &quot;{productSearch}&quot;</div>
+                                        ) : (
+                                            filteredProducts.map((p: any) => (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    className="w-full text-left px-3 py-2 hover:bg-accent flex justify-between items-center text-sm border-b last:border-b-0 cursor-pointer"
+                                                    onClick={() => {
+                                                        setCurrentProduct(p.id)
+                                                        setProductSearch(`${p.name} ${p.sku ? `(${p.sku})` : ""}`)
+                                                        setShowResults(false)
+                                                    }}
+                                                >
+                                                    <div>
+                                                        <span className="font-medium">{p.name}</span>
+                                                        {p.sku && <span className="ml-2 text-xs text-muted-foreground font-mono">{p.sku}</span>}
+                                                        {p.brand && <span className="ml-2 text-xs text-muted-foreground">• {p.brand}</span>}
+                                                    </div>
+                                                    <span className="text-xs text-green-600 font-bold">Stock: {p.stockTotal}</span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <CreateProductDialog onSuccess={handleNewProduct} />
                         </div>
+
+                        {/* DETAILS ROW */}
                         <div className="flex gap-4">
                             <div className="grid gap-2">
                                 <Label>Cantidad</Label>
@@ -167,7 +228,7 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
                             </div>
                             <div className="flex items-end pb-0.5">
                                 <Button variant="secondary" onClick={addItem} type="button">
-                                    <Plus className="h-4 w-4" />
+                                    <Plus className="h-4 w-4 mr-1" /> Agregar
                                 </Button>
                             </div>
                         </div>

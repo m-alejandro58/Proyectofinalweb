@@ -27,6 +27,7 @@ export function EditAccountDialog({ account }: Props) {
     const [loading, setLoading] = useState(false)
     const [name, setName] = useState(account.name)
     const [creditLimit, setCreditLimit] = useState(account.creditLimit || 0)
+    const [image, setImage] = useState(account.image || "")
 
     const isCreditOrLoan = ["CREDIT", "LOAN"].includes(account.type)
 
@@ -43,6 +44,7 @@ export function EditAccountDialog({ account }: Props) {
         const res = await updateFinancialAccount(account.id, {
             name: name.trim(),
             creditLimit: isCreditOrLoan ? creditLimit : undefined,
+            image: image.trim() || undefined,
         })
 
         if (res.success) {
@@ -60,6 +62,7 @@ export function EditAccountDialog({ account }: Props) {
             if (v) {
                 setName(account.name)
                 setCreditLimit(account.creditLimit || 0)
+                setImage(account.image || "")
             }
         }}>
             <DialogTrigger asChild>
@@ -107,6 +110,16 @@ export function EditAccountDialog({ account }: Props) {
                     <div className="text-xs text-muted-foreground bg-muted p-3 rounded-lg">
                         <p><strong>Tipo:</strong> {account.type}</p>
                         <p><strong>Saldo actual:</strong> {formatCurrency(account.balance)}</p>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label>Imagen de la tarjeta (ruta)</Label>
+                        <Input
+                            value={image}
+                            onChange={e => setImage(e.target.value)}
+                            placeholder="/cards/nombre-imagen.avif"
+                        />
+                        <p className="text-xs text-muted-foreground">Coloque la imagen en public/cards/ y escriba la ruta aquí.</p>
                     </div>
                 </div>
 

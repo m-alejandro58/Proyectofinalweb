@@ -225,6 +225,7 @@ export async function processReturn(
                 },
                 sale: {
                     include: {
+                        client: true,
                         depositAccount: true,
                         items: true
                     }
@@ -345,8 +346,19 @@ export async function processReturn(
                 }
             })
 
-            // Opcional: Incrementar cuenta del cliente si es receivable
-            // Por ahora solo restamos del negocio
+            // 2b. Registrar movimiento en historial de transacciones
+            const saleRef = returnRecord.sale.invoiceNumber || returnRecord.saleId.slice(0, 8)
+            const clientName = (returnRecord.sale as any).client?.name || "cliente"
+            await (tx as any).transaction.create({
+                data: {
+                    type: "ADJUSTMENT",
+                    description: `Reembolso devolución #${saleRef} — ${clientName}`,
+                    amount: returnRecord.refundAmount,
+                    fromAccountId: refundAccountId,
+                    toAccountId: null,
+                    date: new Date(),
+                }
+            })
 
             // 3. Actualizar estado de devolución
             await tx.return.update({
@@ -362,6 +374,8 @@ export async function processReturn(
         revalidatePath("/returns")
         revalidatePath("/inventory")
         revalidatePath("/accounts")
+        revalidatePath("/reports")
+        revalidatePath("/")
 
         return {
             success: true,

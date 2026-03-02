@@ -26,11 +26,13 @@ model FinancialAccount {
   creditLimit Float?   @default(0) // Only for CREDIT cards
   
   description String?
+  image       String?   // Path to card image (e.g., /cards/platinum.avif)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   // Relations
-  transactions     Transaction[]     // Money movements (Transfer, Adjustments)
+  transactions        Transaction[] @relation("TxFrom") // Money out / debt payments
+  incomingTx         Transaction[] @relation("TxTo")   // Money in / cashback credits
   purchases        Purchase[]        // Paid from this account
   deposits         Sale[]            // Money received into this account
   expenses         Expense[]         // Expenses paid from this account
@@ -54,14 +56,18 @@ model Expense {
 }
 
 model Transaction {
-  // General money movements (Transfer between accounts, Adjustments)
+  // General money movements: TRANSFER, CASHBACK, DEBT_PAYMENT, ADJUSTMENT
   id          String   @id @default(uuid())
+  type        String   @default("TRANSFER") // TRANSFER | CASHBACK | DEBT_PAYMENT | ADJUSTMENT
   description String
   amount      Float
   date        DateTime @default(now())
-  
-  fromAccount   FinancialAccount? @relation(fields: [fromAccountId], references: [id])
+  createdAt   DateTime @default(now())
+
+  fromAccount   FinancialAccount? @relation("TxFrom", fields: [fromAccountId], references: [id])
   fromAccountId String?
+  toAccount     FinancialAccount? @relation("TxTo", fields: [toAccountId], references: [id])
+  toAccountId   String?
 }
 
 // ---------------------------------------------------------

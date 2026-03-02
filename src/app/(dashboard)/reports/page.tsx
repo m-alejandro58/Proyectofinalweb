@@ -4,7 +4,7 @@ import { ReportFilters } from "@/components/reports/report-filters"
 import { MetricCard } from "@/components/reports/metric-card"
 import { ReportsCharts } from "@/components/reports/charts"
 import { TransactionsTable } from "@/components/reports/transactions-table"
-import { DollarSign, ShoppingBag, Truck, Package, Users, TrendingUp, CreditCard } from "lucide-react"
+import { DollarSign, ShoppingBag, Truck, Package, Users, TrendingUp, CreditCard, Receipt } from "lucide-react"
 import { ExportButton } from "@/components/export-buttons"
 
 export default async function ReportsPage({
@@ -76,6 +76,14 @@ export default async function ReportsPage({
                     value={formatCurrency(summary.totalShipping)}
                     icon={Truck}
                 />
+                <MetricCard
+                    title="Gastos Operativos"
+                    value={formatCurrency(summary.totalExpenses)}
+                    subValue={`${summary.expensesByCategory.length} categorías`}
+                    icon={Receipt}
+                    className="bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800"
+                    valueClassName="text-orange-700 dark:text-orange-400"
+                />
             </div>
 
             {/* PLATFORM COSTS BREAKDOWN */}
@@ -99,6 +107,68 @@ export default async function ReportsPage({
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {/* EXPENSES SEGMENTATION */}
+            {summary.expensesByCategory.length > 0 && (
+                <div className="border p-4 rounded-xl bg-orange-50/40 dark:bg-orange-950/10">
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        <Receipt className="w-5 h-5 text-orange-500" />
+                        Gastos Operativos — Segmentación por Categoría
+                        <span className="ml-auto text-sm font-normal text-muted-foreground">
+                            Total: {formatCurrency(summary.totalExpenses)}
+                        </span>
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b text-muted-foreground">
+                                    <th className="text-left pb-2 font-medium">Categoría</th>
+                                    <th className="text-right pb-2 font-medium"># Gastos</th>
+                                    <th className="text-right pb-2 font-medium">Monto</th>
+                                    <th className="text-right pb-2 font-medium">% del Total</th>
+                                    <th className="text-left pb-2 font-medium pl-4">Proporción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {summary.expensesByCategory.map((exp) => {
+                                    const pct = summary.totalExpenses > 0 ? (exp.amount / summary.totalExpenses) * 100 : 0
+                                    return (
+                                        <tr key={exp.category} className="border-b last:border-0 hover:bg-orange-50 dark:hover:bg-orange-950/20">
+                                            <td className="py-2 font-medium capitalize">{exp.category}</td>
+                                            <td className="py-2 text-right text-muted-foreground">{exp.count}</td>
+                                            <td className="py-2 text-right font-mono font-semibold text-orange-700 dark:text-orange-400">
+                                                {formatCurrency(exp.amount)}
+                                            </td>
+                                            <td className="py-2 text-right text-muted-foreground">{pct.toFixed(1)}%</td>
+                                            <td className="py-2 pl-4">
+                                                <div className="h-2 rounded-full bg-orange-100 dark:bg-orange-900 overflow-hidden w-32">
+                                                    <div
+                                                        className="h-full bg-orange-400 dark:bg-orange-500 rounded-full"
+                                                        style={{ width: `${pct}%` }}
+                                                    />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                            <tfoot>
+                                <tr className="border-t-2 font-bold">
+                                    <td className="pt-2">TOTAL</td>
+                                    <td className="pt-2 text-right text-muted-foreground">
+                                        {summary.expensesByCategory.reduce((s, e) => s + e.count, 0)}
+                                    </td>
+                                    <td className="pt-2 text-right font-mono text-orange-700 dark:text-orange-400">
+                                        {formatCurrency(summary.totalExpenses)}
+                                    </td>
+                                    <td className="pt-2 text-right">100%</td>
+                                    <td />
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
                 </div>
             )}
