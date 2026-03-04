@@ -24,6 +24,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { CreateContactDialog } from "@/components/contacts/create-contact-dialog"
+import { Combobox } from "@/components/ui/combobox"
 
 type SaleItem = {
     productId: string
@@ -217,16 +218,12 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         <div className="flex gap-2 items-end">
                             <div className="grid gap-2 flex-1">
                                 <Label>Cliente</Label>
-                                <Select onValueChange={setClientId} value={clientId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Seleccione Cliente" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {clients.map(p => (
-                                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    items={clients.map((c: any) => ({ value: c.id, label: c.name }))}
+                                    value={clientId}
+                                    onChange={setClientId}
+                                    placeholder="Buscar cliente..."
+                                />
                             </div>
                             <CreateContactDialog onSuccess={handleNewClient} />
                         </div>

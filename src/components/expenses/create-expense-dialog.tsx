@@ -71,6 +71,10 @@ export function CreateExpenseDialog({ accounts }: { accounts: any[] }) {
                                     <SelectItem value="ARRIENDO">Arriendo</SelectItem>
                                     <SelectItem value="TRANSPORTE">Transporte / Envíos</SelectItem>
                                     <SelectItem value="IMPUESTOS">Impuestos</SelectItem>
+                                    <SelectItem value="CARGOS_TC">Cargos TC</SelectItem>
+                                    <SelectItem value="SEGUROS">Seguros</SelectItem>
+                                    <SelectItem value="COMISIONES">Comisiones</SelectItem>
+                                    <SelectItem value="INTERESES">Intereses Préstamos / TC</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
