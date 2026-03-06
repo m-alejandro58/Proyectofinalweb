@@ -173,3 +173,50 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
         return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
     }
 }
+
+export async function getOperationsMetrics() {
+    await requireAuth()
+    try {
+        const products: any[] = await prisma.product.findMany()
+
+        const total = products.length
+
+        // Publication counts
+        const publication = {
+            mercadolibre: { published: 0, missing: 0, label: "MercadoLibre", field: "isPublishedML" },
+            luegopago: { published: 0, missing: 0, label: "LuegoPago", field: "isPublishedLP" },
+            rappi: { published: 0, missing: 0, label: "Rappi", field: "isPublishedRappi" },
+            web: { published: 0, missing: 0, label: "Página Web", field: "isPublishedWeb" },
+            facebook: { published: 0, missing: 0, label: "Facebook", field: "isPublishedFB" },
+        }
+
+        for (const p of products) {
+            if (p.isPublishedML) publication.mercadolibre.published++; else publication.mercadolibre.missing++
+            if (p.isPublishedLP) publication.luegopago.published++; else publication.luegopago.missing++
+            if (p.isPublishedRappi) publication.rappi.published++; else publication.rappi.missing++
+            if (p.isPublishedWeb) publication.web.published++; else publication.web.missing++
+            if (p.isPublishedFB) publication.facebook.published++; else publication.facebook.missing++
+        }
+
+        // Low stock products (stockTotal <= 5), ordered ascending, top 7
+        const lowStock = products
+            .filter((p) => p.stockTotal <= 5)
+            .sort((a, b) => a.stockTotal - b.stockTotal)
+            .slice(0, 7)
+            .map((p) => ({
+                id: p.id,
+                name: p.name,
+                sku: p.sku,
+                stockTotal: p.stockTotal,
+            }))
+
+        return {
+            success: true,
+            data: { total, publication, lowStock },
+        }
+    } catch (error) {
+        console.error("Operations Metrics Error:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
+    }
+}
+

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-import { Plus } from "lucide-react"
+import { Plus, Calculator } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -24,6 +24,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { PricingCalculatorDialog } from "./pricing-calculator-dialog"
 
 const CATEGORIES: Record<string, string[]> = {
     "Componentes": [
@@ -248,11 +249,16 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
                                                 min="0"
                                                 step="any"
                                                 placeholder="Ej. 50000"
-                                                className="pl-7"
+                                                className="pl-7 pr-10"
                                                 value={unitCost}
                                                 onChange={(e) => setUnitCost(e.target.value)}
                                                 required
                                             />
+                                            <div className="absolute right-1 top-1/2 -translate-y-1/2">
+                                                <PricingCalculatorDialog
+                                                    initialCostPrice={Number(unitCost) || undefined}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     {totalValue > 0 && (

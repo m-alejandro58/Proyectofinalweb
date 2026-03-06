@@ -233,3 +233,70 @@ export async function deleteProduct(id: string) {
         return { success: false, error: "Error al eliminar producto" }
     }
 }
+
+// Map platform IDs to DB field names
+const PLATFORM_FIELD_MAP: Record<string, string> = {
+    mercadolibre: "isPublishedML",
+    luegopago: "isPublishedLP",
+    rappi: "isPublishedRappi",
+    web: "isPublishedWeb",
+    facebook: "isPublishedFB",
+}
+
+export async function updateProductPublishStatus(
+    productId: string,
+    platformId: string,
+    isPublished: boolean
+) {
+    await requireAuth()
+
+    const field = PLATFORM_FIELD_MAP[platformId]
+    if (!field) {
+        return { success: false, error: `Plataforma desconocida: ${platformId}` }
+    }
+
+    try {
+        await prisma.product.update({
+            where: { id: productId },
+            data: { [field]: isPublished },
+        })
+
+        revalidatePath("/inventory")
+        return { success: true }
+    } catch (e) {
+        console.error(e)
+        return { success: false, error: "Error al actualizar estado de publicación" }
+    }
+}
+
+export async function bulkUpdatePublishStatus(
+    productIds: string[],
+    platformId: string,
+    isPublished: boolean
+) {
+    await requireAuth()
+
+    const field = PLATFORM_FIELD_MAP[platformId]
+    if (!field) {
+        return { success: false, error: `Plataforma desconocida: ${platformId}` }
+    }
+
+    if (!productIds.length) {
+        return { success: false, error: "No se seleccionaron productos" }
+    }
+
+    try {
+        await prisma.product.updateMany({
+            where: { id: { in: productIds } },
+            data: { [field]: isPublished },
+        })
+
+        revalidatePath("/inventory")
+        return { success: true, count: productIds.length }
+    } catch (e) {
+        console.error(e)
+        return { success: false, error: "Error al actualizar en masa" }
+    }
+}
+
+

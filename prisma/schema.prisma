@@ -122,6 +122,13 @@ model Product {
   fullInventory FullInventory[]
   
   stockFull   Int      @default(0) // Unidades en bodega MercadoLibre FULL (incluidas en stockTotal)
+
+  // Publication status per platform
+  isPublishedML    Boolean @default(false)
+  isPublishedLP    Boolean @default(false)
+  isPublishedRappi Boolean @default(false)
+  isPublishedWeb   Boolean @default(false)
+  isPublishedFB    Boolean @default(false)
 }
 
 model InventoryBatch {
