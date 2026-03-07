@@ -1,6 +1,8 @@
 "use client"
 
 import { useState, useMemo, useTransition } from "react"
+import { Save, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { ChevronDown } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,7 +22,7 @@ import {
     COMMISSION_OPTIONS,
     type PlatformSettings,
 } from "@/lib/pricing"
-import { updateProductPublishStatus } from "@/app/actions/inventory"
+import { updateProductPublishStatus, saveProductPricing } from "@/app/actions/inventory"
 
 // Colores / iconos por plataforma para distinguirlas visualmente
 const PLATFORM_STYLES: Record<string, { emoji: string; accent: string }> = {
@@ -55,16 +57,24 @@ interface PlatformPricingCalculatorProps {
     productId?: string
     /** Estado actual de publicación del producto */
     publishStatus?: PublishStatus
+    /** Margen guardado en DB */
+    savedMarginPercent?: number | null
+    /** Configuración de plataformas guardada en DB (JSON string) */
+    savedPlatformPricing?: string | null
 }
 
 export function PlatformPricingCalculator({
     costPrice: externalCost,
     productId,
     publishStatus,
+    savedMarginPercent,
+    savedPlatformPricing,
 }: PlatformPricingCalculatorProps) {
     // ── Estado ──────────────────────────────────────────────
     const [internalCost, setInternalCost] = useState("")
-    const [margin, setMargin] = useState("20")
+    const [margin, setMargin] = useState(() =>
+        savedMarginPercent != null ? String(savedMarginPercent) : "20"
+    )
     const [published, setPublished] = useState<Record<string, boolean>>(() => {
         if (!publishStatus) return {}
         return {
@@ -75,9 +85,18 @@ export function PlatformPricingCalculator({
             facebook: publishStatus.isPublishedFB,
         }
     })
-    const [platformsData, setPlatformsData] = useState<PlatformSettings[]>(DEFAULT_PLATFORMS)
+    const [platformsData, setPlatformsData] = useState<PlatformSettings[]>(() => {
+        if (savedPlatformPricing) {
+            try {
+                const parsed = JSON.parse(savedPlatformPricing)
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed
+            } catch { /* ignore parse errors */ }
+        }
+        return DEFAULT_PLATFORMS
+    })
     const [expandedBreakdown, setExpandedBreakdown] = useState<Record<string, boolean>>({})
     const [isPending, startTransition] = useTransition()
+    const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
 
     const costPrice = externalCost ?? (Number(internalCost) || 0)
     const desiredMargin = Number(margin) || 0
@@ -122,6 +141,21 @@ export function PlatformPricingCalculator({
                 [field]: typeof value === "string" ? Number(value) || 0 : value,
             }
             return updated
+        })
+    }
+
+    const handleSavePricing = () => {
+        if (!productId) return
+        setSaveStatus("saving")
+        startTransition(async () => {
+            const res = await saveProductPricing(productId, Number(margin) || 0, platformsData)
+            if (res.success) {
+                setSaveStatus("saved")
+                setTimeout(() => setSaveStatus("idle"), 2000)
+            } else {
+                setSaveStatus("idle")
+                alert(res.error || "Error al guardar")
+            }
         })
     }
 
@@ -419,6 +453,28 @@ export function PlatformPricingCalculator({
                 <div className="text-center py-8 text-sm text-muted-foreground border border-dashed rounded-lg">
                     Ingresa un <strong>costo de compra</strong> para calcular los
                     precios de publicación sugeridos.
+                </div>
+            )}
+
+            {/* ── Save button ──────────────────────────────── */}
+            {productId && costPrice > 0 && (
+                <div className="flex justify-end pt-2">
+                    <Button
+                        onClick={handleSavePricing}
+                        disabled={saveStatus === "saving" || isPending}
+                        className={saveStatus === "saved"
+                            ? "bg-green-600 hover:bg-green-700 gap-2"
+                            : "gap-2"
+                        }
+                    >
+                        {saveStatus === "saving" ? (
+                            <>Guardando...</>
+                        ) : saveStatus === "saved" ? (
+                            <><Check className="h-4 w-4" /> Guardado</>
+                        ) : (
+                            <><Save className="h-4 w-4" /> Guardar Configuración de Precios</>
+                        )}
+                    </Button>
                 </div>
             )}
         </div>

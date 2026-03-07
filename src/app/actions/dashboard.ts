@@ -198,11 +198,10 @@ export async function getOperationsMetrics() {
             if (p.isPublishedFB) publication.facebook.published++; else publication.facebook.missing++
         }
 
-        // Low stock products (stockTotal <= 5), ordered ascending, top 7
+        // Low stock products (stockTotal <= 5), ordered ascending — all items
         const lowStock = products
             .filter((p) => p.stockTotal <= 5)
             .sort((a, b) => a.stockTotal - b.stockTotal)
-            .slice(0, 7)
             .map((p) => ({
                 id: p.id,
                 name: p.name,
@@ -220,3 +219,87 @@ export async function getOperationsMetrics() {
     }
 }
 
+// ── Product Performance Metrics ──────────────────────────
+export async function getProductPerformanceMetrics(
+    timeRange: "all" | "currentMonth" | "lastMonth"
+) {
+    await requireAuth()
+    try {
+        // Build date filter
+        const now = new Date()
+        let dateFilter: any = undefined
+
+        if (timeRange === "currentMonth") {
+            const start = new Date(now.getFullYear(), now.getMonth(), 1)
+            dateFilter = { gte: start }
+        } else if (timeRange === "lastMonth") {
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+            const end = new Date(now.getFullYear(), now.getMonth(), 1)
+            dateFilter = { gte: start, lt: end }
+        }
+
+        // Get sales with items
+        const sales = await prisma.sale.findMany({
+            where: dateFilter ? { date: dateFilter } : undefined,
+            include: { items: true },
+        })
+
+        // Aggregate by product name
+        const productMap = new Map<string, {
+            name: string
+            totalQty: number
+            totalRevenue: number
+            totalCost: number
+            totalProfit: number
+        }>()
+
+        for (const sale of sales) {
+            for (const item of sale.items) {
+                const key = item.productName
+                const existing = productMap.get(key) || {
+                    name: key,
+                    totalQty: 0,
+                    totalRevenue: 0,
+                    totalCost: 0,
+                    totalProfit: 0,
+                }
+                const revenue = item.quantity * item.unitPrice
+                const cost = item.quantity * (item.unitCost || 0)
+                existing.totalQty += item.quantity
+                existing.totalRevenue += revenue
+                existing.totalCost += cost
+                existing.totalProfit += revenue - cost
+                productMap.set(key, existing)
+            }
+        }
+
+        const allProducts = Array.from(productMap.values())
+
+        // Top 5 best sellers (by quantity)
+        const topSellers = [...allProducts]
+            .sort((a, b) => b.totalQty - a.totalQty)
+            .slice(0, 5)
+            .map((p) => ({
+                name: p.name,
+                totalQty: p.totalQty,
+                totalRevenue: p.totalRevenue,
+            }))
+
+        // Top 5 most profitable (by net profit)
+        const topROI = [...allProducts]
+            .sort((a, b) => b.totalProfit - a.totalProfit)
+            .slice(0, 5)
+            .map((p) => ({
+                name: p.name,
+                totalProfit: p.totalProfit,
+                marginPercent: p.totalRevenue > 0
+                    ? Math.round((p.totalProfit / p.totalRevenue) * 100)
+                    : 0,
+            }))
+
+        return { success: true, data: { topSellers, topROI } }
+    } catch (error) {
+        console.error("Product Performance Error:", error)
+        return { success: false, error: error instanceof Error ? error.message : "Error desconocido" }
+    }
+}

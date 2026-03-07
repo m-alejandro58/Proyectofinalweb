@@ -300,3 +300,24 @@ export async function bulkUpdatePublishStatus(
 }
 
 
+export async function saveProductPricing(
+    productId: string,
+    marginPercent: number,
+    platformsData: any
+) {
+    await requireAuth()
+    try {
+        await prisma.product.update({
+            where: { id: productId },
+            data: {
+                marginPercent,
+                platformPricing: JSON.stringify(platformsData),
+            } as any,
+        })
+        revalidatePath("/inventory")
+        return { success: true }
+    } catch (e) {
+        console.error("saveProductPricing error:", e)
+        return { success: false, error: "Error al guardar configuración de precios" }
+    }
+}

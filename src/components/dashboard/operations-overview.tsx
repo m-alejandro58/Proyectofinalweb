@@ -139,21 +139,21 @@ export function OperationsOverview({ data }: { data: OperationsData }) {
                                 <BarChart
                                     data={chartData}
                                     layout="vertical"
-                                    margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
+                                    margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
                                 >
                                     <XAxis
                                         type="number"
                                         domain={[0, 100]}
                                         tickFormatter={(v) => `${v}%`}
-                                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                                        tick={{ fill: "#a1a1aa", fontSize: 12 }}
                                         axisLine={false}
                                         tickLine={false}
                                     />
                                     <YAxis
                                         type="category"
                                         dataKey="name"
-                                        width={90}
-                                        tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                                        width={100}
+                                        tick={{ fill: "#a1a1aa", fontSize: 12, fontWeight: 500 }}
                                         axisLine={false}
                                         tickLine={false}
                                     />
@@ -171,7 +171,7 @@ export function OperationsOverview({ data }: { data: OperationsData }) {
                                     <Bar
                                         dataKey="pct"
                                         radius={[0, 6, 6, 0]}
-                                        barSize={24}
+                                        barSize={28}
                                     >
                                         {chartData.map((entry) => (
                                             <Cell
@@ -195,60 +195,62 @@ export function OperationsOverview({ data }: { data: OperationsData }) {
                         </CardTitle>
                         <CardDescription>
                             {lowStock.length > 0
-                                ? `Los ${lowStock.length} productos con menor inventario`
+                                ? `${lowStock.length} productos con stock ≤ 5 unidades`
                                 : "¡Todo en orden! No hay productos con bajo stock."}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         {lowStock.length > 0 ? (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Producto</TableHead>
-                                        <TableHead className="text-center w-[80px]">Stock</TableHead>
-                                        <TableHead className="w-[50px]"></TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {lowStock.map((item) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="max-w-[200px]">
-                                                <p className="truncate text-sm font-medium" title={item.name}>
-                                                    {item.name}
-                                                </p>
-                                                {item.sku && (
-                                                    <p className="text-[11px] text-muted-foreground font-mono">
-                                                        {item.sku}
-                                                    </p>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge
-                                                    variant={item.stockTotal === 0 ? "destructive" : "outline"}
-                                                    className={item.stockTotal > 0 && item.stockTotal <= 5
-                                                        ? "bg-yellow-500/15 text-yellow-500 border-yellow-500/30"
-                                                        : ""
-                                                    }
-                                                >
-                                                    {item.stockTotal}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Link href="/purchases/new">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7"
-                                                        title="Registrar compra"
-                                                    >
-                                                        <ShoppingCart className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </Link>
-                                            </TableCell>
+                            <div className="max-h-[350px] overflow-y-auto pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/40">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Producto</TableHead>
+                                            <TableHead className="text-center w-[80px]">Stock</TableHead>
+                                            <TableHead className="w-[50px]"></TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {lowStock.map((item) => (
+                                            <TableRow key={item.id}>
+                                                <TableCell className="max-w-[200px]">
+                                                    <p className="truncate text-sm font-medium" title={item.name}>
+                                                        {item.name}
+                                                    </p>
+                                                    {item.sku && (
+                                                        <p className="text-[11px] text-muted-foreground font-mono">
+                                                            {item.sku}
+                                                        </p>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge
+                                                        variant={item.stockTotal === 0 ? "destructive" : "outline"}
+                                                        className={item.stockTotal > 0 && item.stockTotal <= 5
+                                                            ? "bg-yellow-500/15 text-yellow-500 border-yellow-500/30"
+                                                            : ""
+                                                        }
+                                                    >
+                                                        {item.stockTotal}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Link href={`/purchases/new?productId=${item.id}`}>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7"
+                                                            title="Registrar compra"
+                                                        >
+                                                            <ShoppingCart className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </Link>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                                 <PackageX className="h-8 w-8 mb-2 opacity-40" />

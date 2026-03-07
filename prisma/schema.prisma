@@ -129,6 +129,10 @@ model Product {
   isPublishedRappi Boolean @default(false)
   isPublishedWeb   Boolean @default(false)
   isPublishedFB    Boolean @default(false)
+
+  // Pricing calculator persistence
+  marginPercent    Float?  // Desired profit margin % for this product
+  platformPricing  String? // JSON: platform-specific pricing config (commissions, shipping, taxes)
 }
 
 model InventoryBatch {

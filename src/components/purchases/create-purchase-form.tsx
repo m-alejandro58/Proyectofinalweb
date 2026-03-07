@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,9 +29,10 @@ type Props = {
     providers: any[]
     accounts: any[]
     products: any[]
+    initialProductId?: string
 }
 
-export function CreatePurchaseForm({ providers, accounts, products: initialProducts }: Props) {
+export function CreatePurchaseForm({ providers, accounts, products: initialProducts, initialProductId }: Props) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     const [items, setItems] = useState<{ productId: string, quantity: number, unitCost: number }[]>([])
@@ -53,6 +54,22 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
     // Product search state
     const [productSearch, setProductSearch] = useState("")
     const [showResults, setShowResults] = useState(false)
+
+    // Ref for auto-focus on quantity input
+    const qtyRef = useRef<HTMLInputElement>(null)
+
+    // Auto-select product from dashboard restock button
+    useEffect(() => {
+        if (initialProductId) {
+            const prod = initialProducts.find((p: any) => p.id === initialProductId)
+            if (prod) {
+                setCurrentProduct(prod.id)
+                setProductSearch(`${prod.name} ${prod.sku ? `(${prod.sku})` : ""}`)
+                // Focus quantity input after a short delay for render
+                setTimeout(() => qtyRef.current?.focus(), 150)
+            }
+        }
+    }, [initialProductId, initialProducts])
 
     const filteredProducts = useMemo(() => {
         if (!productSearch.trim()) return products
@@ -220,7 +237,7 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
                         <div className="flex gap-4">
                             <div className="grid gap-2">
                                 <Label>Cantidad</Label>
-                                <Input type="number" min="1" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} />
+                                <Input ref={qtyRef} type="number" min="1" value={currentQty} onChange={e => setCurrentQty(Number(e.target.value))} />
                             </div>
                             <div className="grid gap-2 flex-1">
                                 <Label>Costo Unit.</Label>

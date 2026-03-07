@@ -524,6 +524,9 @@ export function ProductTable({ products }: { products: any[] }) {
                         : undefined
                 }
                 productId={pricingProduct?.id}
+                productName={pricingProduct?.name}
+                savedMarginPercent={pricingProduct?.marginPercent}
+                savedPlatformPricing={pricingProduct?.platformPricing}
                 publishStatus={pricingProduct ? {
                     isPublishedML: pricingProduct.isPublishedML ?? false,
                     isPublishedLP: pricingProduct.isPublishedLP ?? false,

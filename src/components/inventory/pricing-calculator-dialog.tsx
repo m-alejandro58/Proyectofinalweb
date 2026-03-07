@@ -17,9 +17,15 @@ interface PricingCalculatorDialogProps {
     initialCostPrice?: number
     /** ID del producto (para persistir estado de publicación) */
     productId?: string
+    /** Nombre del producto para mostrar en el título */
+    productName?: string
     /** Estado actual de publicación del producto */
     publishStatus?: PublishStatus
-    /** Elemento que abre el dialog (si no se provee se renderiza un botón por defecto) */
+    /** Margen guardado en DB */
+    savedMarginPercent?: number | null
+    /** Configuración de plataformas guardada en DB */
+    savedPlatformPricing?: string | null
+    /** Elemento que abre el dialog */
     trigger?: React.ReactNode
     /** Modo controlado: estado de apertura externo */
     open?: boolean
@@ -30,7 +36,10 @@ interface PricingCalculatorDialogProps {
 export function PricingCalculatorDialog({
     initialCostPrice,
     productId,
+    productName,
     publishStatus,
+    savedMarginPercent,
+    savedPlatformPricing,
     trigger,
     open: controlledOpen,
     onOpenChange: controlledOnOpenChange,
@@ -60,13 +69,22 @@ export function PricingCalculatorDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Calculator className="h-5 w-5" />
-                        Calculadora de Precios por Plataforma
+                        {productName ? (
+                            <span>
+                                Calculadora:{" "}
+                                <span className="text-primary">{productName}</span>
+                            </span>
+                        ) : (
+                            "Calculadora de Precios por Plataforma"
+                        )}
                     </DialogTitle>
                 </DialogHeader>
                 <PlatformPricingCalculator
                     costPrice={initialCostPrice}
                     productId={productId}
                     publishStatus={publishStatus}
+                    savedMarginPercent={savedMarginPercent}
+                    savedPlatformPricing={savedPlatformPricing}
                 />
             </DialogContent>
         </Dialog>

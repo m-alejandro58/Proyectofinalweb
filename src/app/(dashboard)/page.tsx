@@ -1,14 +1,16 @@
-import { getDashboardMetrics, getOperationsMetrics } from "@/app/actions/dashboard"
+import { getDashboardMetrics, getOperationsMetrics, getProductPerformanceMetrics } from "@/app/actions/dashboard"
 import { FinancialDashboard } from "@/components/dashboard/financial-overview"
 import { OperationsOverview } from "@/components/dashboard/operations-overview"
+import { ProductPerformance } from "@/components/dashboard/product-performance"
 import { ShoppingCart, PackagePlus, Users, Package } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 export default async function Home() {
-  const [result, opsResult] = await Promise.all([
+  const [result, opsResult, perfResult] = await Promise.all([
     getDashboardMetrics(),
     getOperationsMetrics(),
+    getProductPerformanceMetrics("all"),
   ])
 
   if (!result.success) {
@@ -53,6 +55,11 @@ export default async function Home() {
       {/* Operations & Inventory Section */}
       {opsResult.success && opsResult.data && (
         <OperationsOverview data={opsResult.data} />
+      )}
+
+      {/* Product Performance Section */}
+      {perfResult.success && perfResult.data && (
+        <ProductPerformance initialData={perfResult.data} />
       )}
     </div>
   );

@@ -3,7 +3,12 @@ import { getFinancialAccounts } from "@/app/actions/accounts"
 import { getProducts } from "@/app/actions/inventory"
 import { CreatePurchaseForm } from "@/components/purchases/create-purchase-form"
 
-export default async function NewPurchasePage() {
+export default async function NewPurchasePage({
+    searchParams,
+}: {
+    searchParams: Promise<{ productId?: string }>
+}) {
+    const params = await searchParams
     const [contactsRes, accountsRes, productsRes] = await Promise.all([
         getContacts("PROVIDER"),
         getFinancialAccounts(),
@@ -21,7 +26,9 @@ export default async function NewPurchasePage() {
                 providers={contactsRes.data || []}
                 accounts={accountsRes.data || []}
                 products={productsRes.data || []}
+                initialProductId={params.productId}
             />
         </div>
     )
 }
+
