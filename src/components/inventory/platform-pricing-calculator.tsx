@@ -61,6 +61,10 @@ interface PlatformPricingCalculatorProps {
     savedMarginPercent?: number | null
     /** Configuración de plataformas guardada en DB (JSON string) */
     savedPlatformPricing?: string | null
+    /** Callback para guardar (expuesto al dialog header) */
+    onSaveRef?: React.MutableRefObject<(() => void) | null>
+    /** Estado del guardado (controlado desde el padre) */
+    saveStatusRef?: React.MutableRefObject<"idle" | "saving" | "saved">
 }
 
 export function PlatformPricingCalculator({
@@ -69,6 +73,8 @@ export function PlatformPricingCalculator({
     publishStatus,
     savedMarginPercent,
     savedPlatformPricing,
+    onSaveRef,
+    saveStatusRef,
 }: PlatformPricingCalculatorProps) {
     // ── Estado ──────────────────────────────────────────────
     const [internalCost, setInternalCost] = useState("")
@@ -89,7 +95,24 @@ export function PlatformPricingCalculator({
         if (savedPlatformPricing) {
             try {
                 const parsed = JSON.parse(savedPlatformPricing)
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Merge saved data with current defaults to pick up new fields
+                    // and corrected values (e.g. chargesIvaOnCommission, financingCostPercent)
+                    return DEFAULT_PLATFORMS.map((def) => {
+                        const saved = parsed.find((s: any) => s.id === def.id)
+                        if (!saved) return def
+                        return {
+                            ...def,
+                            // Keep user-editable values from saved data
+                            commissionPercent: saved.commissionPercent ?? def.commissionPercent,
+                            fixedShippingCost: saved.fixedShippingCost ?? def.fixedShippingCost,
+                            extraTaxes: saved.extraTaxes ?? def.extraTaxes,
+                            financingCostPercent: saved.financingCostPercent ?? def.financingCostPercent,
+                            // Always use current defaults for structural settings
+                            chargesIvaOnCommission: def.chargesIvaOnCommission,
+                        }
+                    })
+                }
             } catch { /* ignore parse errors */ }
         }
         return DEFAULT_PLATFORMS
@@ -131,7 +154,7 @@ export function PlatformPricingCalculator({
 
     const updatePlatformField = (
         index: number,
-        field: "fixedShippingCost" | "extraTaxes" | "commissionPercent",
+        field: "fixedShippingCost" | "extraTaxes" | "commissionPercent" | "financingCostPercent",
         value: string | number,
     ) => {
         setPlatformsData((prev) => {
@@ -147,17 +170,26 @@ export function PlatformPricingCalculator({
     const handleSavePricing = () => {
         if (!productId) return
         setSaveStatus("saving")
+        if (saveStatusRef) saveStatusRef.current = "saving"
         startTransition(async () => {
             const res = await saveProductPricing(productId, Number(margin) || 0, platformsData)
             if (res.success) {
                 setSaveStatus("saved")
-                setTimeout(() => setSaveStatus("idle"), 2000)
+                if (saveStatusRef) saveStatusRef.current = "saved"
+                setTimeout(() => {
+                    setSaveStatus("idle")
+                    if (saveStatusRef) saveStatusRef.current = "idle"
+                }, 2000)
             } else {
                 setSaveStatus("idle")
+                if (saveStatusRef) saveStatusRef.current = "idle"
                 alert(res.error || "Error al guardar")
             }
         })
     }
+
+    // Expose save handler to parent (dialog header)
+    if (onSaveRef) onSaveRef.current = handleSavePricing
 
     // ── Render ──────────────────────────────────────────────
     return (
@@ -335,8 +367,11 @@ export function PlatformPricingCalculator({
                                                 />
                                             </div>
                                         </div>
+                                    </div>
 
-                                        {/* Imp. Extra — Input */}
+                                    {/* ── Financing cost + Imp. Extra row ── */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Imp. Extra */}
                                         <div className="space-y-0.5">
                                             <label className="text-[10px] text-muted-foreground/70">
                                                 Imp. Extra
@@ -359,6 +394,32 @@ export function PlatformPricingCalculator({
                                                         )
                                                     }
                                                 />
+                                            </div>
+                                        </div>
+
+                                        {/* Costo Financiero */}
+                                        <div className="space-y-0.5">
+                                            <label className="text-[10px] text-muted-foreground/70">
+                                                C. Financiero (%)
+                                            </label>
+                                            <div className="relative">
+                                                <Input
+                                                    type="number"
+                                                    step="any"
+                                                    min="0"
+                                                    className="h-7 text-xs px-2 py-0"
+                                                    value={platform.financingCostPercent}
+                                                    onChange={(e) =>
+                                                        updatePlatformField(
+                                                            index,
+                                                            "financingCostPercent",
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                />
+                                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 text-[10px]">
+                                                    %
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -423,6 +484,14 @@ export function PlatformPricingCalculator({
                                                 </span>
                                                 <span>−{fmt(breakdown.bankTaxAmount)}</span>
                                             </div>
+                                            {breakdown.financingCostAmount > 0 && (
+                                                <div className="flex justify-between text-red-400/80">
+                                                    <span>
+                                                        − Costo Financiero ({platform.financingCostPercent}%)
+                                                    </span>
+                                                    <span>−{fmt(breakdown.financingCostAmount)}</span>
+                                                </div>
+                                            )}
                                             <div className="flex justify-between text-red-400/80">
                                                 <span>− Costo Artículo</span>
                                                 <span>−{fmt(costPrice)}</span>
@@ -453,28 +522,6 @@ export function PlatformPricingCalculator({
                 <div className="text-center py-8 text-sm text-muted-foreground border border-dashed rounded-lg">
                     Ingresa un <strong>costo de compra</strong> para calcular los
                     precios de publicación sugeridos.
-                </div>
-            )}
-
-            {/* ── Save button ──────────────────────────────── */}
-            {productId && costPrice > 0 && (
-                <div className="flex justify-end pt-2">
-                    <Button
-                        onClick={handleSavePricing}
-                        disabled={saveStatus === "saving" || isPending}
-                        className={saveStatus === "saved"
-                            ? "bg-green-600 hover:bg-green-700 gap-2"
-                            : "gap-2"
-                        }
-                    >
-                        {saveStatus === "saving" ? (
-                            <>Guardando...</>
-                        ) : saveStatus === "saved" ? (
-                            <><Check className="h-4 w-4" /> Guardado</>
-                        ) : (
-                            <><Save className="h-4 w-4" /> Guardar Configuración de Precios</>
-                        )}
-                    </Button>
                 </div>
             )}
         </div>

@@ -20,6 +20,8 @@ export interface PlatformSettings {
     bankTaxPercent: number
     /** Cobros fijos adicionales como Impuestos G (en COP) */
     extraTaxes: number
+    /** Porcentaje de costo financiero por demora (ej. 4 = 4% por espera SisteCredito) */
+    financingCostPercent: number
 }
 
 /**
@@ -42,6 +44,8 @@ export interface PricingResult {
         extraTaxesAmount: number
         /** Impuesto bancario (4×1000) en COP */
         bankTaxAmount: number
+        /** Costo financiero (interés por espera) en COP */
+        financingCostAmount: number
         /** Ganancia real verificada = precio − todas las deducciones − costo */
         realNetProfit: number
     }
@@ -63,6 +67,7 @@ export const DEFAULT_PLATFORMS: PlatformSettings[] = [
         fixedShippingCost: 7600,
         bankTaxPercent: 0.4,
         extraTaxes: 3045,
+        financingCostPercent: 0,
     },
     {
         id: "luegopago",
@@ -72,15 +77,17 @@ export const DEFAULT_PLATFORMS: PlatformSettings[] = [
         fixedShippingCost: 0,
         bankTaxPercent: 0.4,
         extraTaxes: 0,
+        financingCostPercent: 4,
     },
     {
         id: "rappi",
         name: "Rappi",
         commissionPercent: 20,
-        chargesIvaOnCommission: true,
+        chargesIvaOnCommission: false,
         fixedShippingCost: 0,
         bankTaxPercent: 0.4,
         extraTaxes: 0,
+        financingCostPercent: 0,
     },
     {
         id: "web",
@@ -90,6 +97,7 @@ export const DEFAULT_PLATFORMS: PlatformSettings[] = [
         fixedShippingCost: 10_000,
         bankTaxPercent: 0.4,
         extraTaxes: 0,
+        financingCostPercent: 0,
     },
     {
         id: "facebook",
@@ -99,6 +107,7 @@ export const DEFAULT_PLATFORMS: PlatformSettings[] = [
         fixedShippingCost: 0,
         bankTaxPercent: 0.4,
         extraTaxes: 0,
+        financingCostPercent: 0,
     },
 ]
 
@@ -127,7 +136,8 @@ export function calculatePublishPrice(
         ? commissionDecimal * 1.19
         : commissionDecimal
     const bankTaxPercentDecimal = platform.bankTaxPercent / 100
-    const totalDeductionPercent = effectiveCommissionPercent + bankTaxPercentDecimal
+    const financingCostDecimal = (platform.financingCostPercent || 0) / 100
+    const totalDeductionPercent = effectiveCommissionPercent + bankTaxPercentDecimal + financingCostDecimal
 
     // 3. Calcular Precio Publicado Final (Cálculo Inverso)
     const rawPublishPrice = (baseTargetPrice + platform.fixedShippingCost + platform.extraTaxes) / (1 - totalDeductionPercent)
@@ -139,12 +149,14 @@ export function calculatePublishPrice(
         ? Math.round(commissionAmount * 0.19)
         : 0
     const bankTaxAmount = Math.round(publishPrice * bankTaxPercentDecimal)
+    const financingCostAmount = Math.round(publishPrice * financingCostDecimal)
     const realNetProfit = publishPrice
         - commissionAmount
         - ivaOnCommission
         - platform.fixedShippingCost
         - platform.extraTaxes
         - bankTaxAmount
+        - financingCostAmount
         - costPrice
 
     return {
@@ -156,6 +168,7 @@ export function calculatePublishPrice(
             shippingCost: platform.fixedShippingCost,
             extraTaxesAmount: platform.extraTaxes,
             bankTaxAmount,
+            financingCostAmount,
             realNetProfit: Math.round(realNetProfit),
         },
     }

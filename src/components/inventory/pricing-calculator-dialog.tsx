@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Calculator } from "lucide-react"
+import { useState, useRef, useCallback } from "react"
+import { Calculator, Save, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Dialog,
@@ -45,6 +45,11 @@ export function PricingCalculatorDialog({
     onOpenChange: controlledOnOpenChange,
 }: PricingCalculatorDialogProps) {
     const [internalOpen, setInternalOpen] = useState(false)
+    const [, forceUpdate] = useState(0)
+
+    // Refs to communicate with the calculator child
+    const onSaveRef = useRef<(() => void) | null>(null)
+    const saveStatusRef = useRef<"idle" | "saving" | "saved">("idle")
 
     // Si se pasan open/onOpenChange, usar modo controlado; si no, modo interno.
     const isControlled = controlledOpen !== undefined
@@ -52,6 +57,17 @@ export function PricingCalculatorDialog({
     const onOpenChange = isControlled
         ? controlledOnOpenChange!
         : setInternalOpen
+
+    const handleSave = useCallback(() => {
+        if (onSaveRef.current) {
+            onSaveRef.current()
+            // Force re-render to pick up saveStatusRef changes
+            const interval = setInterval(() => forceUpdate((n) => n + 1), 100)
+            setTimeout(() => clearInterval(interval), 3000)
+        }
+    }, [])
+
+    const currentSaveStatus = saveStatusRef.current
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,17 +83,38 @@ export function PricingCalculatorDialog({
             )}
             <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Calculator className="h-5 w-5" />
-                        {productName ? (
-                            <span>
-                                Calculadora:{" "}
-                                <span className="text-primary">{productName}</span>
-                            </span>
-                        ) : (
-                            "Calculadora de Precios por Plataforma"
+                    <div className="flex items-center justify-between gap-4 pr-6">
+                        <DialogTitle className="flex items-center gap-2">
+                            <Calculator className="h-5 w-5" />
+                            {productName ? (
+                                <span>
+                                    Calculadora:{" "}
+                                    <span className="text-primary">{productName}</span>
+                                </span>
+                            ) : (
+                                "Calculadora de Precios por Plataforma"
+                            )}
+                        </DialogTitle>
+                        {productId && (
+                            <Button
+                                onClick={handleSave}
+                                disabled={currentSaveStatus === "saving"}
+                                size="sm"
+                                className={currentSaveStatus === "saved"
+                                    ? "bg-green-600 hover:bg-green-700 gap-1.5 shrink-0"
+                                    : "gap-1.5 shrink-0"
+                                }
+                            >
+                                {currentSaveStatus === "saving" ? (
+                                    <>Guardando...</>
+                                ) : currentSaveStatus === "saved" ? (
+                                    <><Check className="h-3.5 w-3.5" /> Guardado</>
+                                ) : (
+                                    <><Save className="h-3.5 w-3.5" /> Guardar</>
+                                )}
+                            </Button>
                         )}
-                    </DialogTitle>
+                    </div>
                 </DialogHeader>
                 <PlatformPricingCalculator
                     costPrice={initialCostPrice}
@@ -85,6 +122,8 @@ export function PricingCalculatorDialog({
                     publishStatus={publishStatus}
                     savedMarginPercent={savedMarginPercent}
                     savedPlatformPricing={savedPlatformPricing}
+                    onSaveRef={onSaveRef}
+                    saveStatusRef={saveStatusRef}
                 />
             </DialogContent>
         </Dialog>

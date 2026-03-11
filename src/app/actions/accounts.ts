@@ -153,7 +153,7 @@ export async function registerCashback(
 
 // ─── PAGO DE DEUDA ────────────────────────────────────────────────────────────
 // Paga una tarjeta o préstamo desde cualquier cuenta líquida:
-//   1) Reduce la deuda (balance += amount → menos deuda)
+//   1) Reduce la deuda (balance -= amount → menos deuda)
 //   2) Debita la cuenta origen (balance -= amount)
 //   3) Registra la transacción
 export async function payDebt(
@@ -172,10 +172,10 @@ export async function payDebt(
 
     try {
         await prisma.$transaction(async (tx: any) => {
-            // 1. Reduce debt (balance moves toward 0)
+            // 1. Reduce debt (positive balance = debt owed, so decrement to pay it down)
             await tx.financialAccount.update({
                 where: { id: debtAccountId },
-                data: { balance: { increment: amount } }
+                data: { balance: { decrement: amount } }
             })
 
             // 2. Debit source account

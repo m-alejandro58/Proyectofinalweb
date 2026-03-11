@@ -5,11 +5,17 @@ import { revalidatePath } from "next/cache"
 import { requireAuth } from "@/lib/auth-guard"
 
 // ---- Types ----
+type OrderItemInput = {
+    productId: string
+    quantity: number
+    unitPrice: number
+}
+
 type CreateOrderInput = {
-    type: "CUSTOM" | "LAYAWAY"
+    type: "CUSTOM" | "LAYAWAY" | "CREDIT"
     clientId: string
     description: string
-    productId?: string
+    productId?: string      // For CUSTOM/LAYAWAY (single product)
     quantity: number
     agreedPrice: number
     estimatedCost?: number
@@ -17,6 +23,8 @@ type CreateOrderInput = {
     expectedArrival?: string // ISO date string
     addToInventory?: boolean
     notes?: string
+    // Multi-item support (CREDIT)
+    items?: OrderItemInput[]
     // Optional initial payment
     initialPayment?: {
         amount: number
@@ -42,10 +50,17 @@ export async function createCustomerOrder(input: CreateOrderInput) {
     if (input.type === "LAYAWAY" && !input.productId) {
         return { success: false, error: "Debe seleccionar un producto para apartar" }
     }
+    if (input.type === "CREDIT") {
+        if ((!input.items || input.items.length === 0) && !input.productId) {
+            return { success: false, error: "Debe seleccionar al menos un producto para el crédito" }
+        }
+    }
 
     try {
         const order = await prisma.$transaction(async (tx: any) => {
             let reservedBatchId: string | null = null
+            let creditSaleId: string | null = null
+            let creditOrderItems: any[] = []
 
             // LAYAWAY: Reserve stock immediately
             if (input.type === "LAYAWAY" && input.productId) {
@@ -103,6 +118,138 @@ export async function createCustomerOrder(input: CreateOrderInput) {
                 })
             }
 
+            // CREDIT: Deduct stock immediately (FIFO) and create auto-Sale
+            if (input.type === "CREDIT") {
+                // Build items list: either from multi-item array or single product fallback
+                const creditItems: OrderItemInput[] = (input.items && input.items.length > 0)
+                    ? input.items
+                    : (input.productId ? [{ productId: input.productId, quantity: input.quantity, unitPrice: input.agreedPrice / input.quantity }] : [])
+
+                if (creditItems.length === 0) throw new Error("No hay productos para el crédito")
+
+                // Generate invoice number
+                const lastRem = await tx.sale.findFirst({
+                    where: { invoiceNumber: { startsWith: 'REM-' } },
+                    orderBy: { invoiceNumber: 'desc' }
+                })
+                let nextNum = 1
+                if (lastRem && lastRem.invoiceNumber) {
+                    const match = lastRem.invoiceNumber.match(/REM-(\d+)/)
+                    if (match && match[1]) nextNum = parseInt(match[1], 10) + 1
+                }
+                const invoiceNumber = `REM-${nextNum.toString().padStart(4, '0')}`
+
+                const depositAccId = input.initialPayment?.accountId || (await tx.financialAccount.findFirst())?.id
+
+                // Create auto-Sale record
+                const sale = await tx.sale.create({
+                    data: {
+                        clientId: input.clientId,
+                        depositAccountId: depositAccId || null,
+                        channel: 'Presencial',
+                        paymentMethod: 'A Crédito',
+                        grossAmount: input.agreedPrice,
+                        platformFee: 0,
+                        shippingCost: 0,
+                        taxes: 0,
+                        netAmount: input.agreedPrice,
+                        invoiceNumber,
+                        date: new Date()
+                    }
+                })
+
+                // Process each item: FIFO deduction + SaleItem + OrderItem
+                const orderItemsData: any[] = []
+
+                for (const item of creditItems) {
+                    const product = await tx.product.findUnique({ where: { id: item.productId } })
+                    if (!product) throw new Error(`Producto no encontrado: ${item.productId}`)
+                    const available = product.stockTotal - (product.stockFull || 0)
+                    if (available < item.quantity) {
+                        throw new Error(`Stock insuficiente para ${product.name}. Disponible: ${available}`)
+                    }
+
+                    // FIFO batch deduction
+                    const batches = await tx.inventoryBatch.findMany({
+                        where: { productId: item.productId, status: 'AVAILABLE', quantity: { gt: 0 } },
+                        orderBy: { createdAt: 'asc' }
+                    })
+
+                    let qtyToDeduct = item.quantity
+                    let totalCost = 0
+
+                    // Calculate cost
+                    for (const batch of batches) {
+                        if (qtyToDeduct <= 0) break
+                        if (batch.quantity >= qtyToDeduct) {
+                            totalCost += qtyToDeduct * batch.unitCost
+                            qtyToDeduct = 0
+                        } else {
+                            totalCost += batch.quantity * batch.unitCost
+                            qtyToDeduct -= batch.quantity
+                        }
+                    }
+                    const calculatedUnitCost = item.quantity > 0 ? totalCost / item.quantity : 0
+
+                    // Deduct from batches
+                    qtyToDeduct = item.quantity
+                    for (const batch of batches) {
+                        if (qtyToDeduct <= 0) break
+                        if (batch.quantity >= qtyToDeduct) {
+                            await tx.inventoryBatch.update({
+                                where: { id: batch.id },
+                                data: {
+                                    quantity: { decrement: qtyToDeduct },
+                                    status: batch.quantity === qtyToDeduct ? 'SOLD_OUT' : 'AVAILABLE'
+                                }
+                            })
+                            qtyToDeduct = 0
+                        } else {
+                            const batchQty = batch.quantity
+                            await tx.inventoryBatch.update({
+                                where: { id: batch.id },
+                                data: { quantity: 0, status: 'SOLD_OUT' }
+                            })
+                            qtyToDeduct -= batchQty
+                        }
+                    }
+
+                    // Decrease product stock
+                    await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stockTotal: { decrement: item.quantity } }
+                    })
+
+                    // Create SaleItem
+                    await tx.saleItem.create({
+                        data: {
+                            saleId: sale.id,
+                            productName: product.name,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            unitCost: calculatedUnitCost
+                        }
+                    })
+
+                    // Collect order item data
+                    orderItemsData.push({
+                        productId: item.productId,
+                        productName: product.name,
+                        quantity: item.quantity,
+                        unitPrice: item.unitPrice,
+                        unitCost: calculatedUnitCost
+                    })
+                }
+
+                creditSaleId = sale.id
+                creditOrderItems = orderItemsData
+            }
+
+            // Determine initial status
+            let initialStatus = "PENDING"
+            if (input.type === "LAYAWAY") initialStatus = "RESERVED"
+            if (input.type === "CREDIT") initialStatus = "ACTIVE"
+
             // Create the order
             const newOrder = await tx.customerOrder.create({
                 data: {
@@ -117,11 +264,28 @@ export async function createCustomerOrder(input: CreateOrderInput) {
                     expectedArrival: input.expectedArrival ? new Date(input.expectedArrival) : null,
                     addToInventory: input.addToInventory || false,
                     notes: input.notes || null,
-                    status: input.type === "LAYAWAY" ? "RESERVED" : "PENDING",
+                    status: initialStatus,
                     reservedBatchId,
+                    saleId: creditSaleId,
                     requestDate: new Date()
                 }
             })
+
+            // Create CustomerOrderItem records for CREDIT multi-item
+            if (creditOrderItems.length > 0) {
+                for (const item of creditOrderItems) {
+                    await tx.customerOrderItem.create({
+                        data: {
+                            orderId: newOrder.id,
+                            productId: item.productId,
+                            productName: item.productName,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice,
+                            unitCost: item.unitCost
+                        }
+                    })
+                }
+            }
 
             // Process initial payment if provided
             if (input.initialPayment && input.initialPayment.amount > 0) {
@@ -137,11 +301,17 @@ export async function createCustomerOrder(input: CreateOrderInput) {
                 })
 
                 // Update totalPaid
+                let statusAfterPayment = "PENDING"
+                if (input.type === "LAYAWAY") statusAfterPayment = "PAYING"
+                if (input.type === "CREDIT") {
+                    statusAfterPayment = input.initialPayment.amount >= input.agreedPrice ? "PAID" : "ACTIVE"
+                }
+
                 await tx.customerOrder.update({
                     where: { id: newOrder.id },
                     data: {
                         totalPaid: input.initialPayment.amount,
-                        status: input.type === "LAYAWAY" ? "PAYING" : "PENDING"
+                        status: statusAfterPayment
                     }
                 })
 
@@ -170,6 +340,7 @@ export async function createCustomerOrder(input: CreateOrderInput) {
         revalidatePath("/orders")
         revalidatePath("/inventory")
         revalidatePath("/accounts")
+        revalidatePath("/sales")
         return { success: true, data: order }
     } catch (error: any) {
         console.error("Create order error:", error)
@@ -194,6 +365,7 @@ export async function getCustomerOrders(filter?: { type?: string, status?: strin
             include: {
                 client: true,
                 provider: true,
+                items: { orderBy: { createdAt: 'asc' } },
                 payments: {
                     include: { account: true },
                     orderBy: { date: 'asc' }
@@ -246,8 +418,11 @@ export async function addOrderPayment(orderId: string, payments: PaymentInput[])
             })
 
             if (!order) throw new Error("Pedido no encontrado")
-            if (order.status === "DELIVERED" || order.status === "CANCELLED") {
+            if (["DELIVERED", "CANCELLED", "PAID"].includes(order.status) && order.type !== "CREDIT") {
                 throw new Error("Este pedido ya fue completado o cancelado")
+            }
+            if (order.type === "CREDIT" && order.status === "PAID") {
+                throw new Error("Este crédito ya fue pagado en su totalidad")
             }
 
             let paymentTotal = 0
@@ -307,6 +482,15 @@ export async function addOrderPayment(orderId: string, payments: PaymentInput[])
                     newStatus = "PAID"
                 } else if (newTotal > 0) {
                     newStatus = "PAYING"
+                }
+            }
+
+            // CREDIT: Auto-complete when fully paid
+            if (order.type === "CREDIT") {
+                if (newTotal >= order.agreedPrice) {
+                    newStatus = "PAID"
+                } else {
+                    newStatus = "ACTIVE"
                 }
             }
 
@@ -613,6 +797,14 @@ export async function cancelOrder(orderId: string) {
                 }
             }
 
+            // CREDIT: Restore stock (product was already delivered, so we re-add to inventory)
+            if (order.type === "CREDIT" && order.productId) {
+                await tx.product.update({
+                    where: { id: order.productId },
+                    data: { stockTotal: { increment: order.quantity } }
+                })
+            }
+
             // Reverse payments (return money to accounts)
             for (const payment of order.payments) {
                 if (payment.accountId) {
@@ -670,6 +862,12 @@ export async function getOrdersSummary() {
         const reserved = orders.filter(o => ["RESERVED", "PAYING"].includes(o.status)).length
         const paid = orders.filter(o => o.status === "PAID").length
 
+        // Credit-specific metrics
+        const creditActive = orders.filter(o => o.type === "CREDIT" && o.status === "ACTIVE").length
+        const creditPendingAmount = orders
+            .filter(o => o.type === "CREDIT" && o.status === "ACTIVE")
+            .reduce((sum, o) => sum + (o.agreedPrice - o.totalPaid), 0)
+
         const totalPendingRevenue = orders.reduce((sum, o) => sum + (o.agreedPrice - o.totalPaid), 0)
 
         return {
@@ -680,6 +878,8 @@ export async function getOrdersSummary() {
                 arrived,
                 reserved,
                 paid,
+                creditActive,
+                creditPendingAmount,
                 totalActive: orders.length,
                 totalPendingRevenue
             }

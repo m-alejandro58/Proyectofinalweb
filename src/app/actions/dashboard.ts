@@ -77,7 +77,13 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
         // Channels
         const salesByChannel: Record<string, number> = {}
         sales.forEach(sale => {
-            const channel = sale.channel || 'Otros'
+            let channel = sale.channel ? sale.channel.trim() : 'Otros'
+            if (channel) {
+                // Capitalize first letter strictly
+                channel = channel.charAt(0).toUpperCase() + channel.slice(1).toLowerCase()
+            } else {
+                channel = 'Otros'
+            }
             salesByChannel[channel] = (salesByChannel[channel] || 0) + sale.grossAmount
         })
 
@@ -102,18 +108,20 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
         // 3. FINANCIAL ACCOUNTS (Liquidity & Debt)
         const accounts = await prisma.financialAccount.findMany()
 
-        let liquidity = 0 // Cash + Bank
+        let liquidity = 0 // Cash + Bank (available, excludes reserved accounts)
         let totalDebt = 0 // Credit + Loans
         let receivables = 0 // Sistecredito / Pending
 
+        // Accounts excluded from liquidity (reserved for specific purposes)
+        const excludedFromLiquidity = ['sistecredito', 'ahorro de emergencia', 'impuestos ahorrados']
+
         accounts.forEach(acc => {
+            const nameLC = acc.name.toLowerCase()
             if (['CASH', 'BANK', 'WALLET'].includes(acc.type)) {
-                liquidity += acc.balance
+                if (!excludedFromLiquidity.some(ex => nameLC.includes(ex))) {
+                    liquidity += acc.balance
+                }
             } else if (['CREDIT', 'LOAN'].includes(acc.type)) {
-                // If balance is positive, it might mean we overpaid or it's just tracking usage. 
-                // Usually Credit Card balance is Debt. 
-                // Let's assume positive balance = Debt for Credit Cards based on previous logic?
-                // Wait, previous logic: "Credit 'balance' ... Purchase INCREASES debt (Positive)".
                 totalDebt += acc.balance
             } else if (acc.type === 'RECEIVABLE') {
                 receivables += acc.balance

@@ -22,7 +22,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Eye, Plus, Trash2, CheckCircle, XCircle, Truck, Package, Clock, Receipt, DollarSign, AlertTriangle, ShieldAlert, Unlock } from "lucide-react"
+import { Eye, Plus, Trash2, CheckCircle, XCircle, Truck, Package, Clock, Receipt, DollarSign, AlertTriangle, ShieldAlert, Unlock, CreditCard } from "lucide-react"
 import { addOrderPayment, updateOrderStatus, cancelOrder, releaseReservedStock } from "@/app/actions/customer-orders"
 
 type Props = {
@@ -236,6 +236,12 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                 { key: "DELIVERED", label: "Entregado", icon: CheckCircle },
             ]
         }
+        if (order.type === "CREDIT") {
+            return [
+                { key: "ACTIVE", label: "Activo", icon: CreditCard },
+                { key: "PAID", label: "Pagado", icon: CheckCircle },
+            ]
+        }
         return [
             { key: "RESERVED", label: "Separado", icon: Clock },
             { key: "PAYING", label: "Abonando", icon: Package },
@@ -258,6 +264,9 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                 "ARRIVED": "DELIVERED",
             }
             return flow[order.status] || null
+        } else if (order.type === "CREDIT") {
+            // Credits don't have manual status transitions — they auto-complete via payments
+            return null
         } else {
             // LAYAWAY: PAID → DELIVERED
             if (order.status === "PAID") return "DELIVERED"
@@ -321,7 +330,7 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        {order.type === "CUSTOM" ? "Pedido Especial" : "Apartado"} — {order.description}
+                        {order.type === "CUSTOM" ? "Pedido Especial" : order.type === "CREDIT" ? "💳 Crédito Directo" : "Apartado"} — {order.description}
                     </DialogTitle>
                     <DialogDescription>
                         Cliente: {order.client?.name} | Creado: {new Date(order.requestDate).toLocaleDateString('es-CO')}
@@ -393,6 +402,35 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                             />
                         </div>
                     </div>
+
+                    {/* Multi-item list (CREDIT) */}
+                    {order.type === "CREDIT" && order.items && order.items.length > 0 && (
+                        <div>
+                            <h4 className="text-sm font-semibold mb-2">📦 Productos del Crédito</h4>
+                            <div className="rounded-lg border overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-muted/50 text-xs">
+                                            <th className="text-left p-2">Producto</th>
+                                            <th className="text-center p-2">Cant.</th>
+                                            <th className="text-right p-2">Precio Unit.</th>
+                                            <th className="text-right p-2">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {order.items.map((item: any) => (
+                                            <tr key={item.id} className="border-t">
+                                                <td className="p-2 font-medium">{item.productName}</td>
+                                                <td className="p-2 text-center">{item.quantity}</td>
+                                                <td className="p-2 text-right">{formatCurrency(item.unitPrice)}</td>
+                                                <td className="p-2 text-right font-medium">{formatCurrency(item.unitPrice * item.quantity)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Order Details */}
                     <div className="grid gap-2 text-sm">
@@ -635,7 +673,9 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                     {/* Payment History */}
                     {order.payments && order.payments.length > 0 && (
                         <div>
-                            <h4 className="text-sm font-semibold mb-2">Historial de Pagos del Cliente</h4>
+                            <h4 className="text-sm font-semibold mb-2">
+                                {order.type === "CREDIT" ? "💳 Historial de Abonos" : "Historial de Pagos del Cliente"}
+                            </h4>
                             <div className="space-y-2">
                                 {order.payments.map((p: any) => (
                                     <div key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-muted/50 text-sm">
@@ -655,11 +695,11 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                     )}
 
                     {/* Add Partial Payment Form (during order lifecycle, not at delivery) */}
-                    {!["DELIVERED", "CANCELLED"].includes(order.status) && remaining > 0 && !showDeliveryForm && !showSupplierForm && (
+                    {!["DELIVERED", "CANCELLED"].includes(order.status) && !(order.type !== "CREDIT" && order.status === "PAID") && remaining > 0 && !showDeliveryForm && !showSupplierForm && (
                         <div className="border rounded-lg p-4 space-y-3">
                             {!showPaymentForm ? (
                                 <Button variant="outline" className="w-full" onClick={() => setShowPaymentForm(true)}>
-                                    <Plus className="mr-2 h-4 w-4" /> Registrar Abono / Pago del Cliente
+                                    <Plus className="mr-2 h-4 w-4" /> {order.type === "CREDIT" ? "Registrar Abono" : "Registrar Abono / Pago del Cliente"}
                                 </Button>
                             ) : (
                                 <>
@@ -771,7 +811,7 @@ export function OrderDetailsDialog({ order, accounts }: Props) {
                     })()}
 
                     {/* Action Buttons */}
-                    {!["DELIVERED", "CANCELLED"].includes(order.status) && !showSupplierForm && !showDeliveryForm && (
+                    {!["DELIVERED", "CANCELLED", "PAID"].includes(order.status) && !showSupplierForm && !showDeliveryForm && (
                         <div className="flex gap-2 justify-between items-center pt-2 border-t">
                             <Button variant="destructive" size="sm" onClick={handleCancel} disabled={loading}>
                                 <XCircle className="mr-2 h-4 w-4" /> Cancelar Pedido

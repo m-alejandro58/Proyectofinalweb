@@ -381,14 +381,14 @@ model DeferredPayment {
 
 model CustomerOrder {
   id              String   @id @default(uuid())
-  type            String   // "CUSTOM" (pedido especial) or "LAYAWAY" (apartado)
+  type            String   // "CUSTOM" (pedido especial), "LAYAWAY" (apartado), or "CREDIT" (crédito directo)
   
   client          Contact  @relation(fields: [clientId], references: [id])
   clientId        String
   
   // Product info
   description     String   // What was ordered / product name
-  productId       String?  // Link to existing Product (required for LAYAWAY)
+  productId       String?  // Link to existing Product (required for LAYAWAY & CREDIT)
   quantity        Int      @default(1)
   
   // Pricing
@@ -406,10 +406,14 @@ model CustomerOrder {
   // Stock reservation (LAYAWAY only)
   reservedBatchId String?  // Which batch was reserved
   
+  // Sale link (CREDIT only — auto-generated sale)
+  saleId          String?  // Links to the auto-created Sale
+  
   // Status
   status          String   @default("PENDING")
   // CUSTOM:  PENDING → ORDERED → IN_TRANSIT → ARRIVED → DELIVERED | CANCELLED
   // LAYAWAY: RESERVED → PAYING → PAID → DELIVERED | CANCELLED
+  // CREDIT:  ACTIVE → PAID | CANCELLED
   
   // Dates
   requestDate     DateTime @default(now())
@@ -422,9 +426,25 @@ model CustomerOrder {
   addToInventory  Boolean  @default(false) // CUSTOM: add to stock on arrival?
   
   payments        OrderPayment[]
+  items           CustomerOrderItem[]
   notes           String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+model CustomerOrderItem {
+  id          String   @id @default(uuid())
+  
+  order       CustomerOrder @relation(fields: [orderId], references: [id])
+  orderId     String
+  
+  productId   String
+  productName String   // Snapshot at time of order
+  quantity    Int      @default(1)
+  unitPrice   Float    // Agreed price per unit
+  unitCost    Float?   // FIFO cost at time of credit creation
+  
+  createdAt   DateTime @default(now())
 }
 
 model OrderPayment {
