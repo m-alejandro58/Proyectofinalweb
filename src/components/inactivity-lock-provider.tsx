@@ -12,7 +12,7 @@ export function InactivityLockProvider({ children }: { children: React.ReactNode
     useEffect(() => {
         getCurrentUserName().then(setUserName)
     }, [])
-
+    //comentario
     return (
         <>
             {isLocked && (
