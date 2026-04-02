@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useMemo, useEffect, useTransition } from "react"
+import { useState, useMemo, useEffect, useTransition, useRef } from "react"
+import { CopywritingDialog } from "./copywriting-dialog"
+import { MarketAnalystDialog } from "./market-analyst-dialog"
+import { TransferToAssetDialog } from "./transfer-to-asset-dialog"
 import {
     Table,
     TableBody,
@@ -17,7 +20,7 @@ import { PublicationFilter, PLATFORM_OPTIONS, type PlatformField } from "./publi
 import {
     Package, Search, MoreHorizontal, Pencil, Trash2, AlertTriangle,
     Calculator, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-    CheckCircle2, XCircle, Layers,
+    CheckCircle2, XCircle, Layers, Sparkles, BarChart3, Bot, UploadCloud, Building2
 } from "lucide-react"
 import {
     DropdownMenu,
@@ -33,7 +36,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { EditProductDialog } from "./edit-product-dialog"
 import { deleteProduct, bulkUpdatePublishStatus } from "@/app/actions/inventory"
+import { uploadProductImage } from "@/app/actions/upload-image"
 import { PricingCalculatorDialog } from "./pricing-calculator-dialog"
+import { toast } from "sonner"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -109,11 +114,41 @@ export function ProductTable({ products }: { products: any[] }) {
     const [editingProduct, setEditingProduct] = useState<any>(null)
     const [deletingProduct, setDeletingProduct] = useState<any>(null)
     const [pricingProduct, setPricingProduct] = useState<any>(null)
+    const [copywritingProduct, setCopywritingProduct] = useState<any>(null)
+    const [analystProduct, setAnalystProduct] = useState<any>(null)
     const [currentPage, setCurrentPage] = useState(1)
     const [isPending, startTransition] = useTransition()
+    const [uploadingProductId, setUploadingProductId] = useState<string | null>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const [transferProduct, setTransferProduct] = useState<any>(null)
 
     // Extract unique brands for filter
     const brands = Array.from(new Set(products.map(p => p.brand).filter(Boolean)))
+
+    // --- File Upload Handler ---
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file || !uploadingProductId) return
+
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("productId", uploadingProductId)
+
+        const promise = uploadProductImage(formData).then((res) => {
+            if (!res.success) throw new Error(res.error)
+            return res
+        })
+
+        toast.promise(promise, {
+            loading: "Subiendo imagen real...",
+            success: "La fotografía real se vinculó exitosamente.",
+            error: (err) => err.message || "Error al subir la imagen.",
+        })
+
+        // Cleanup
+        e.target.value = ""
+        setUploadingProductId(null)
+    }
 
     const filteredProducts = useMemo(() => {
         return products.filter(prod => {
@@ -357,10 +392,20 @@ export function ProductTable({ products }: { products: any[] }) {
                                     <TableCell className="font-mono text-xs text-muted-foreground">
                                         {prod.sku || "N/A"}
                                     </TableCell>
-                                    <TableCell className="font-medium max-w-[150px] truncate" title={prod.name}>
-                                        <div className="flex items-center gap-2">
-                                            <Package className="h-4 w-4 text-muted-foreground" />
-                                            {prod.name}
+                                    <TableCell className="font-medium max-w-[200px]" title={prod.name}>
+                                        <div>
+                                            <div className="flex items-center gap-2 truncate">
+                                                <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                                {prod.name}
+                                            </div>
+                                            {(prod.weight || prod.height || prod.width || prod.length) && (
+                                                <div className="text-[10px] text-muted-foreground ml-6 mt-0.5">
+                                                    {prod.weight ? `${prod.weight}kg` : ""}
+                                                    {prod.weight && (prod.height || prod.width || prod.length) ? " · " : ""}
+                                                    {(prod.height || prod.width || prod.length) ? 
+                                                        `${prod.height || "?"}×${prod.width || "?"}×${prod.length || "?"} cm` : ""}
+                                                </div>
+                                            )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
@@ -409,6 +454,21 @@ export function ProductTable({ products }: { products: any[] }) {
                                                 <DropdownMenuItem onClick={() => setPricingProduct(prod)}>
                                                     <Calculator className="mr-2 h-4 w-4" /> Calculadora de Precios
                                                 </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setCopywritingProduct(prod)}>
+                                                    <Bot className="mr-2 h-4 w-4 text-yellow-500" /> 🤖 Asistente IA (Copy & Fotos)
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setAnalystProduct(prod)}>
+                                                    <BarChart3 className="mr-2 h-4 w-4 text-blue-500" /> Analista de Mercado
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => {
+                                                    setUploadingProductId(prod.id)
+                                                    fileInputRef.current?.click()
+                                                }}>
+                                                    <UploadCloud className="mr-2 h-4 w-4 text-sky-500" /> 📤 Subir Foto Real
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => setTransferProduct(prod)}>
+                                                    <Building2 className="mr-2 h-4 w-4 text-amber-500" /> 🏢 Trasladar a Uso de Empresa
+                                                </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeletingProduct(prod)}>
                                                     <Trash2 className="mr-2 h-4 w-4" /> Eliminar
@@ -429,6 +489,15 @@ export function ProductTable({ products }: { products: any[] }) {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Hidden File Input for Image Uploads */}
+            <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                className="hidden"
+                onChange={handleFileUpload}
+            />
 
             {/* Pagination Controls */}
             <div className="flex items-center justify-between">
@@ -535,6 +604,31 @@ export function ProductTable({ products }: { products: any[] }) {
                     isPublishedFB: pricingProduct.isPublishedFB ?? false,
                 } : undefined}
             />
+
+            {/* Hub de Asistencia IA (Copy + Prompt Imágenes) */}
+            <CopywritingDialog
+                open={!!copywritingProduct}
+                onOpenChange={(open) => !open && setCopywritingProduct(null)}
+                productId={copywritingProduct?.id || ""}
+                productName={copywritingProduct?.name || ""}
+                product={copywritingProduct}
+            />
+
+            {/* Market Analyst Dialog */}
+            <MarketAnalystDialog
+                open={!!analystProduct}
+                onOpenChange={(open) => !open && setAnalystProduct(null)}
+                productName={analystProduct?.name || ""}
+            />
+
+            {/* Transfer to Company Asset Dialog */}
+            {transferProduct && (
+                <TransferToAssetDialog
+                    open={!!transferProduct}
+                    onOpenChange={(open) => !open && setTransferProduct(null)}
+                    product={transferProduct}
+                />
+            )}
         </div>
     )
 }

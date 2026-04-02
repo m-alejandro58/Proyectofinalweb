@@ -59,7 +59,7 @@ export function InactivityLockScreen({ userName, onUnlock }: InactivityLockScree
                     </div>
                     <div className="mb-3 relative w-24 h-24">
                         <Image
-                            src="/logo.png"
+                            src="/HardsoftBlack&White.png"
                             alt="HardSoft Logo"
                             fill
                             className="object-contain opacity-60"

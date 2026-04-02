@@ -22,11 +22,21 @@ export async function createSale(
     taxes: number,
     items: SaleItemInput[],
     invoiceNumber?: string,
-    paymentMethod?: string
+    paymentMethod?: string,
+    saleDate?: Date
 ) {
     await requireAuth()
     if (!clientId || !depositAccountId || items.length === 0) {
         return { success: false, error: "Datos incompletos" }
+    }
+
+    if (grossAmount < 0 || platformFee < 0 || shippingCost < 0 || taxes < 0) {
+        return { success: false, error: "Montos no pueden ser negativos" }
+    }
+    for (const item of items) {
+        if (item.quantity <= 0 || item.unitPrice < 0) {
+            return { success: false, error: "La cantidad debe ser mayor a 0 y el precio válido" }
+        }
     }
 
     const netAmount = grossAmount - platformFee - shippingCost - taxes
@@ -66,7 +76,7 @@ export async function createSale(
                     taxes,
                     netAmount,
                     invoiceNumber: finalInvoiceNumber,
-                    date: new Date()
+                    date: saleDate || new Date()
                 }
             })
 
@@ -77,9 +87,16 @@ export async function createSale(
                 const product = await tx.product.findUnique({ where: { id: item.productId } })
                 if (!product) throw new Error(`Producto no encontrado ${item.productId}`)
 
-                const available = product.stockTotal - (product.stockFull || 0)
-                if (available < item.quantity) {
-                    throw new Error(`Stock insuficiente para ${product.name}. Disponible local: ${available} (Total: ${product.stockTotal}, En FULL: ${product.stockFull || 0})`)
+                const isMercadoLibre = channel === 'MERCADOLIBRE'
+                const stockLocal = product.stockTotal - (product.stockFull || 0)
+                const stockAvailable = isMercadoLibre ? product.stockTotal : stockLocal
+
+                if (stockAvailable < item.quantity) {
+                    if (isMercadoLibre) {
+                        throw new Error(`Stock insuficiente para ${product.name}. Stock total: ${product.stockTotal} (Local: ${stockLocal}, FULL: ${product.stockFull || 0})`)
+                    } else {
+                        throw new Error(`Stock insuficiente para ${product.name}. Disponible local: ${stockLocal} (Total: ${product.stockTotal}, En FULL: ${product.stockFull || 0}). Si la venta es de MercadoLibre FULL, selecciona el canal MERCADOLIBRE.`)
+                    }
                 }
 
                 // Calculate Warranty End Date
@@ -137,14 +154,62 @@ export async function createSale(
                 })
 
                 // Update Stock (Global)
+                // isMercadoLibre and stockLocal already declared above (validation block)
+                // Re-fetch fresh stock values after other potential updates in the loop
+                const productStock = await tx.product.findUnique({
+                    where: { id: item.productId },
+                    select: { stockFull: true, stockTotal: true }
+                })
+                const currentStockFull = productStock?.stockFull || 0
+
+                // How many units come from FULL vs local for this item
+                let qtyFromFull = 0
+                if (isMercadoLibre && currentStockFull > 0) {
+                    // Take from FULL first, then local
+                    qtyFromFull = Math.min(item.quantity, currentStockFull)
+                }
+
                 await tx.product.update({
                     where: { id: item.productId },
                     data: {
-                        stockTotal: { decrement: item.quantity }
+                        stockTotal: { decrement: item.quantity },
+                        // If some units come from FULL, also decrement stockFull
+                        ...(qtyFromFull > 0 ? { stockFull: { decrement: qtyFromFull } } : {})
                     }
                 })
 
-                // Now perform actual batch deduction
+                // If we took from FULL, update FullInventory records (FIFO: oldest shipment first)
+                if (qtyFromFull > 0) {
+                    const fullItems = await tx.fullInventory.findMany({
+                        where: {
+                            productId: item.productId,
+                            status: 'IN_WAREHOUSE',
+                            quantityInStock: { gt: 0 }
+                        },
+                        orderBy: { arrivedAt: 'asc' } // FIFO: arrived first, sold first
+                    })
+
+                    let remainingFromFull = qtyFromFull
+                    for (const fullItem of fullItems) {
+                        if (remainingFromFull <= 0) break
+
+                        const deductFromThis = Math.min(remainingFromFull, fullItem.quantityInStock)
+                        const newStock = fullItem.quantityInStock - deductFromThis
+                        const newSold = fullItem.quantitySold + deductFromThis
+
+                        await tx.fullInventory.update({
+                            where: { id: fullItem.id },
+                            data: {
+                                quantityInStock: newStock,
+                                quantitySold: newSold,
+                                status: newStock === 0 ? 'SOLD_OUT' : 'IN_WAREHOUSE'
+                            }
+                        })
+                        remainingFromFull -= deductFromThis
+                    }
+                }
+
+                // Now perform actual inventory batch deduction (for local stock portion)
                 qtyToDeduct = item.quantity
                 for (const batch of batches) {
                     if (qtyToDeduct <= 0) break;
@@ -155,7 +220,6 @@ export async function createSale(
                             where: { id: batch.id },
                             data: {
                                 quantity: { decrement: qtyToDeduct },
-                                // If 0 left, optionally mark SOLD_OUT, but 'quantity: { gt: 0 }' filter handles it next time.
                                 status: batch.quantity === qtyToDeduct ? 'SOLD_OUT' : 'AVAILABLE'
                             }
                         })
@@ -217,8 +281,8 @@ export async function createSale(
             // 4. Auto-create DeferredPayment for any SISTECREDITO sale
             // Applies to all channels: LuegoPago, Presencial, WhatsApp, etc.
             if (paymentMethod === 'SISTECREDITO') {
-                const saleDate = new Date()
-                const expectedDate = new Date(saleDate)
+                const sDate = saleDate || new Date()
+                const expectedDate = new Date(sDate)
                 expectedDate.setDate(expectedDate.getDate() + 60)
 
                 await tx.deferredPayment.create({
@@ -228,7 +292,7 @@ export async function createSale(
                         platform: channel || 'PRESENCIAL',
                         paymentMethod: 'SISTECREDITO',
                         status: 'PENDING',
-                        saleDate,
+                        saleDate: sDate,
                         expectedDate
                     }
                 })
@@ -245,10 +309,20 @@ export async function createSale(
     }
 }
 
-export async function getSales() {
+export async function getSales(queryParam?: string) {
     await requireAuth()
     try {
+        const where: any = {}
+        if (queryParam) {
+            where.OR = [
+                { invoiceNumber: { contains: queryParam, mode: 'insensitive' } },
+                { client: { name: { contains: queryParam, mode: 'insensitive' } } },
+                { items: { some: { productName: { contains: queryParam, mode: 'insensitive' } } } }
+            ]
+        }
+
         const sales = await prisma.sale.findMany({
+            where,
             include: {
                 client: true,
                 depositAccount: true,

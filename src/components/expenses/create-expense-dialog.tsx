@@ -25,6 +25,10 @@ import { createExpense } from "@/app/actions/expenses"
 export function CreateExpenseDialog({ accounts }: { accounts: any[] }) {
     const [open, setOpen] = useState(false)
     const [loading, setLoading] = useState(false)
+    const [expenseDate, setExpenseDate] = useState(() => {
+        const d = new Date()
+        return d.toISOString().split('T')[0] // default to today YYYY-MM-DD
+    })
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
@@ -94,6 +98,15 @@ export function CreateExpenseDialog({ accounts }: { accounts: any[] }) {
                                     ))}
                                 </SelectContent>
                             </Select>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Fecha del Gasto</Label>
+                            <Input
+                                name="expenseDate"
+                                type="date"
+                                value={expenseDate}
+                                onChange={e => setExpenseDate(e.target.value)}
+                            />
                         </div>
                     </div>
                     <DialogFooter>

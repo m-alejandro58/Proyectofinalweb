@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/db"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay, format } from "date-fns"
 import { requireAuth } from "@/lib/auth-guard"
+import {
+    calculateGrossProfit,
+    calculateOperatingProfit,
+    calculateNetProfit,
+    calculateMarginPercentage,
+} from "@/utils/finance"
 
 export type ReportFilters = {
     from?: Date
@@ -128,12 +134,19 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             })
             totalGrossProfit += (sale.grossAmount - saleCOGS)
 
-            // 2. Per-Transaction Calculations
+            // ── Margen de Contribución por venta ─────────────────────────────────
+            // = Venta - COGS - Comisión - Envío - Ret. - GMF - ICA
+            // NOTA: NO incluye gastos operativos fijos (Ads/Admin). Esos se descuentan
+            // del total del período en summaryNetProfit (alineado con dashboard.ts).
             const gmf = sale.grossAmount * 0.004
-            const operating = (sale.grossAmount - saleCOGS - (sale.platformFee || 0) - (sale.shippingCost || 0))
-            const ica = operating * 0.01 // Applied to operating profit per established logic
-
-            const net = operating - (sale.taxes || 0) - gmf - ica
+            const operatingPerSale = calculateGrossProfit(
+                sale.grossAmount,
+                saleCOGS + (sale.platformFee || 0) + (sale.shippingCost || 0)
+            )
+            // ICA por venta: proporcional, sobre la contribución operativa individual
+            const ica = operatingPerSale * 0.01
+            // Margen de Contribución neto (sin OPEX global)
+            const contribution = operatingPerSale - (sale.taxes || 0) - gmf - ica
 
             transactions.push({
                 id: sale.id,
@@ -146,18 +159,22 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
                 cogs: saleCOGS,
                 commission: sale.platformFee || 0,
                 shipping: sale.shippingCost || 0,
-                taxes: sale.taxes || 0, // Retenciones
+                taxes: sale.taxes || 0,
                 gmf,
                 ica,
-                netProfit: net,
-                margin: sale.grossAmount > 0 ? (net / sale.grossAmount) * 100 : 0
+                // netProfit en TransactionRow = Margen Contribución (sin OPEX fijos)
+                netProfit: contribution,
+                margin: calculateMarginPercentage(
+                    saleCOGS + (sale.platformFee || 0) + (sale.shippingCost || 0) + (sale.taxes || 0) + gmf + ica,
+                    sale.grossAmount
+                )
             })
 
             // 3. Charts Data
             const dateKey = format(sale.date, 'yyyy-MM-dd')
             if (!salesByDate[dateKey]) salesByDate[dateKey] = { sales: 0, profit: 0 }
             salesByDate[dateKey].sales += sale.grossAmount
-            salesByDate[dateKey].profit += net
+            salesByDate[dateKey].profit += contribution
 
             const ch = sale.channel || 'Otros'
             if (!platformStats[ch]) platformStats[ch] = { sales: 0, commissions: 0, shipping: 0 }
@@ -182,10 +199,26 @@ export async function getReportData(filters?: ReportFilters): Promise<{ success:
             .map(([category, data]) => ({ category, amount: data.amount, count: data.count }))
             .sort((a, b) => b.amount - a.amount)
 
-        const isFiltered = !!(filters?.platform && filters.platform !== 'all');
-        const appliedGlobalExpenses = isFiltered ? 0 : totalGlobalExpenses;
-
-        const summaryNetProfit = transactions.reduce((sum, t) => sum + t.netProfit, 0) - appliedGlobalExpenses
+        // ── Ganancia Neta del Período (alineada al Dashboard) ────────────────
+        // Paso 1: Ganancia Bruta = Ventas - COGS total del período
+        const periodGross = calculateGrossProfit(totalSales, totalSales - totalGrossProfit)
+        // Paso 2: Ganancia Operativa = Bruta - Comisiones - Envíos - OPEX global
+        const isFiltered = !!(filters?.platform && filters.platform !== 'all')
+        const appliedGlobalExpenses = isFiltered ? 0 : totalGlobalExpenses
+        const periodOperating = calculateOperatingProfit(
+            periodGross,
+            totalCommissions + totalShipping + appliedGlobalExpenses
+        )
+        // Paso 3: ICA (1%) sobre Ganancia Operativa del período (misma base que dashboard)
+        const periodICA = periodOperating * 0.01
+        // Paso 4: GMF (4x1000) sobre ventas totales del período
+        const periodGMF = totalSales * 0.004
+        // Paso 5: Ganancia Neta = Operativa - Impuestos
+        const summaryNetProfit = calculateNetProfit(
+            periodOperating,
+            periodICA + periodGMF + totalRetenciones,
+            0
+        )
 
 
         // --- FORMAT CHARTS ---

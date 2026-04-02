@@ -14,6 +14,12 @@ export async function createProduct(formData: FormData) {
     const category = formData.get("category") as string
     const subcategory = formData.get("subcategory") as string
 
+    // Logistics fields
+    const weight = formData.get("weight") ? Number(formData.get("weight")) : null
+    const height = formData.get("height") ? Number(formData.get("height")) : null
+    const width = formData.get("width") ? Number(formData.get("width")) : null
+    const length = formData.get("length") ? Number(formData.get("length")) : null
+
     // Optional initial stock
     const hasInitialStock = formData.get("hasInitialStock") === "true"
     const initialQuantity = Number(formData.get("initialQuantity")) || 0
@@ -37,8 +43,12 @@ export async function createProduct(formData: FormData) {
                 category,
                 subcategory,
                 minStock,
-                stockTotal: hasInitialStock ? initialQuantity : 0
-            }
+                stockTotal: hasInitialStock ? initialQuantity : 0,
+                weight,
+                height,
+                width,
+                length,
+            } as any
         })
 
         // If initial stock provided, create an inventory batch
@@ -78,15 +88,48 @@ export async function getProducts() {
     }
 }
 
+/**
+ * Versión ligera para el formulario de nueva venta.
+ * Solo trae los campos necesarios para el buscador y la validación de stock.
+ * No incluye batches (el FIFO se calcula en el backend al guardar).
+ */
+export async function getProductsForSale() {
+    await requireAuth()
+    try {
+        const products = await prisma.product.findMany({
+            select: {
+                id: true,
+                name: true,
+                sku: true,
+                brand: true,
+                category: true,
+                stockTotal: true,
+                stockFull: true,
+            },
+            orderBy: { name: 'asc' }
+        })
+        return { success: true, data: products }
+    } catch (e) {
+        return { success: false, error: "Error fetching products" }
+    }
+}
+
 export async function updateProduct(id: string, formData: FormData) {
     await requireAuth()
     const sku = formData.get("sku") as string
     const name = formData.get("name") as string
     const minStock = Number(formData.get("minStock")) || 5
     const description = formData.get("description") as string
+    const imageUrl = (formData.get("imageUrl") as string) || null
     const brand = formData.get("brand") as string
     const category = formData.get("category") as string
     const subcategory = formData.get("subcategory") as string
+
+    // Logistics fields
+    const weight = formData.get("weight") ? Number(formData.get("weight")) : null
+    const height = formData.get("height") ? Number(formData.get("height")) : null
+    const width = formData.get("width") ? Number(formData.get("width")) : null
+    const length = formData.get("length") ? Number(formData.get("length")) : null
 
     // Check if sku exists (if changed)
     if (sku) {
@@ -108,11 +151,16 @@ export async function updateProduct(id: string, formData: FormData) {
                 name,
                 sku,
                 description,
+                imageUrl,
                 brand,
                 category,
                 subcategory,
-                minStock
-            }
+                minStock,
+                weight,
+                height,
+                width,
+                length,
+            } as any
         })
 
         revalidatePath('/inventory')

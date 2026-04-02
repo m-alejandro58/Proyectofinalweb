@@ -48,6 +48,13 @@ next-env.d.ts
 .bugster/videos/
 .bugster/logs/
 .bugster/reports/
+
+# Bugster
+.bugster/results/
+.bugster/screenshots/
+.bugster/videos/
+.bugster/logs/
+.bugster/reports/
 .bugster/.env
 *.bugster.log
 .bugster/paths.json
@@ -55,3 +62,6 @@ next-env.d.ts
 .bugster/files/
 .bugster/*/import_tree.json
 .bugster/.sessions/
+
+# Uploads Locales
+/public/uploads/

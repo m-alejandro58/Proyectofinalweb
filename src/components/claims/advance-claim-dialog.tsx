@@ -15,11 +15,25 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ArrowRight, DollarSign } from "lucide-react"
+import { ArrowRight, DollarSign, AlertTriangle } from "lucide-react"
 import { advanceClaimStatus } from "@/app/actions/provider-claims"
 import { getFinancialAccounts } from "@/app/actions/accounts"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+
+// ── Fiscal Constants 2026 ───────────────────────────────────
+const UVT_2026 = 52374
+const SANITY_THRESHOLD_UVT = 60
+const SANITY_THRESHOLD_COP = UVT_2026 * SANITY_THRESHOLD_UVT // $3,142,440
+
+// ── Currency formatter (es-CO) ──────────────────────────────
+const formatCOP = (value: number) =>
+    new Intl.NumberFormat("es-CO", {
+        style: "currency",
+        currency: "COP",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(value)
 
 // Status flows per type
 const STATUS_FLOWS: Record<string, string[]> = {
@@ -57,12 +71,27 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
     const [refundAccountId, setRefundAccountId] = useState("")
     const [notes, setNotes] = useState("")
 
+    // Sanity check state
+    const [sanityConfirmed, setSanityConfirmed] = useState(false)
+
     const flow = STATUS_FLOWS[claim.type] || []
     const currentIndex = flow.indexOf(claim.status)
     const nextStatus = currentIndex >= 0 && currentIndex < flow.length - 1 ? flow[currentIndex + 1] : null
 
     const needsRefundData = nextStatus === "REFUNDED"
     const needsReorderData = nextStatus === "REORDERED"
+
+    // Parse amounts for validation
+    const refundNum = parseFloat(refundAmount) || 0
+    const reorderNum = parseFloat(reorderAmount) || 0
+    const highestAmount = Math.max(refundNum, reorderNum)
+    const exceedsThreshold = highestAmount > SANITY_THRESHOLD_COP
+    const needsSanityConfirm = exceedsThreshold && !sanityConfirmed
+
+    // Reset sanity confirmation when amount changes
+    useEffect(() => {
+        setSanityConfirmed(false)
+    }, [refundAmount, reorderAmount])
 
     useEffect(() => {
         if (open && needsRefundData) {
@@ -87,6 +116,12 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
         // Validate required fields
         if (needsRefundData && (!refundAmount || !refundAccountId)) {
             toast.error("Ingresa el monto del reembolso y selecciona la cuenta destino")
+            return
+        }
+
+        // Sanity check gate
+        if (needsSanityConfirm) {
+            toast.warning("Confirma el monto primero (clic en el botón de confirmación)")
             return
         }
 
@@ -167,6 +202,11 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
                                     onChange={(e) => setReorderAmount(e.target.value)}
                                 />
                             </div>
+                            {reorderNum > 0 && (
+                                <p className="text-xs text-muted-foreground font-medium">
+                                    💰 {formatCOP(reorderNum)}
+                                </p>
+                            )}
                             <p className="text-xs text-muted-foreground">
                                 Cuánto costó la recompra del producto nuevo
                             </p>
@@ -189,6 +229,11 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
                                         onChange={(e) => setRefundAmount(e.target.value)}
                                     />
                                 </div>
+                                {refundNum > 0 && (
+                                    <p className="text-xs text-muted-foreground font-medium">
+                                        💰 {formatCOP(refundNum)}
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-2">
@@ -212,6 +257,35 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
                         </>
                     )}
 
+                    {/* ── Sanity Check Warning (60 UVT) ───────────── */}
+                    {exceedsThreshold && (
+                        <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/40 rounded-lg text-xs">
+                            <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                            <div className="space-y-2">
+                                <p className="text-yellow-700 dark:text-yellow-300">
+                                    <strong>⚠️ ¿Estás seguro?</strong> El valor ingresado (
+                                    <strong>{formatCOP(highestAmount)}</strong>) supera las 60 UVT
+                                    ({formatCOP(SANITY_THRESHOLD_COP)}). Verifica que no haya un error de digitación.
+                                </p>
+                                {!sanityConfirmed ? (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="border-yellow-500 text-yellow-700 dark:text-yellow-300 hover:bg-yellow-500/20"
+                                        onClick={() => setSanityConfirmed(true)}
+                                    >
+                                        ✅ Sí, el valor es correcto
+                                    </Button>
+                                ) : (
+                                    <p className="text-green-600 dark:text-green-400 font-medium">
+                                        ✅ Confirmado por el usuario
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Notes */}
                     <div className="space-y-2">
                         <Label>Notas (opcional)</Label>
@@ -228,7 +302,7 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
                     <Button variant="outline" onClick={() => setOpen(false)} disabled={loading}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleAdvance} disabled={loading}>
+                    <Button onClick={handleAdvance} disabled={loading || needsSanityConfirm}>
                         {loading ? "Procesando..." : `Avanzar a "${STATUS_LABELS[nextStatus]}"`}
                     </Button>
                 </DialogFooter>
@@ -236,3 +310,4 @@ export function AdvanceClaimDialog({ claim }: { claim: any }) {
         </Dialog>
     )
 }
+

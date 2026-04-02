@@ -82,7 +82,7 @@ export function PlatformPricingCalculator({
         savedMarginPercent != null ? String(savedMarginPercent) : "20"
     )
     const [published, setPublished] = useState<Record<string, boolean>>(() => {
-        if (!publishStatus) return {}
+        if (!publishStatus) return {} as Record<string, boolean>
         return {
             mercadolibre: publishStatus.isPublishedML,
             luegopago: publishStatus.isPublishedLP,

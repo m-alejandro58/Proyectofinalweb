@@ -133,6 +133,12 @@ model Product {
   // Pricing calculator persistence
   marginPercent    Float?  // Desired profit margin % for this product
   platformPricing  String? // JSON: platform-specific pricing config (commissions, shipping, taxes)
+
+  // Logistics / Shipping dimensions
+  weight           Float?  // Peso en kilogramos (kg)
+  height           Float?  // Alto del empaque en centímetros (cm)
+  width            Float?  // Ancho del empaque en centímetros (cm)
+  length           Float?  // Largo/Profundidad del empaque en centímetros (cm)
 }
 
 model InventoryBatch {
@@ -540,4 +546,29 @@ model User {
   canManageClaims     Boolean @default(false) // Reclamaciones
   
   createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------
+// ACTIVOS FIJOS (PP&E - Property, Plant & Equipment)
+// ---------------------------------------------------------
+
+model FixedAsset {
+  id              String   @id @default(uuid())
+  name            String   // Nombre descriptivo del activo (ej: "Silla Gerencial Oficina")
+  category        String   // MUEBLES | EQUIPOS | VEHICULOS | OTROS
+  
+  purchaseValue   Float    // Costo de adquisición (COGS del lote si viene de inventario)
+  currentValue    Float    // Valor actual (permite depreciación manual)
+  
+  purchaseDate    DateTime @default(now())
+  status          String   @default("ACTIVO") // ACTIVO | DEPRECIADO | VENDIDO
+  
+  notes           String?  // Descripción adicional
+  
+  // Referencia al producto de inventario de origen (si vino de autoconsumo)
+  originProductId   String? // ID del Product original
+  originProductName String? // Snapshot del nombre del producto
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

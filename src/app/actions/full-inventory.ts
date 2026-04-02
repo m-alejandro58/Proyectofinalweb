@@ -128,9 +128,14 @@ export async function confirmShipmentArrival(shipmentId: string) {
 }
 
 /**
- * Record sale of a specific item (from a batch)
+ * NOTA: Las ventas de artículos en Mercado Full se deben registrar desde
+ * el módulo de Ventas (canal: MERCADOLIBRE). El sistema automáticamente
+ * descuenta del stockFull y actualiza este registro.
+ *
+ * Esta función permite revertir una venta registrada incorrectamente
+ * directamente desde esta pestaña (rescate de admin).
  */
-export async function recordFullSale(fullId: string, quantity: number) {
+export async function reverseFullSaleRecord(fullId: string, quantity: number) {
     await requireAuth()
 
     if (quantity <= 0) return { success: false, error: "Cantidad inválida" }
@@ -142,38 +147,37 @@ export async function recordFullSale(fullId: string, quantity: number) {
 
         if (!fullItem) return { success: false, error: "Item no encontrado" }
 
-        if (fullItem.quantityInStock < quantity) {
-            return { success: false, error: `Solo quedan ${fullItem.quantityInStock} unidades en este lote` }
+        if (fullItem.quantitySold < quantity) {
+            return { success: false, error: `Solo hay ${fullItem.quantitySold} unidades vendidas en este lote para revertir` }
         }
 
         await prisma.$transaction(async (tx: any) => {
-            const newStock = fullItem.quantityInStock - quantity
-            const newSold = fullItem.quantitySold + quantity
-            const newStatus = newStock === 0 ? "SOLD_OUT" : fullItem.status
+            const newStock = fullItem.quantityInStock + quantity
+            const newSold = fullItem.quantitySold - quantity
 
             await tx.fullInventory.update({
                 where: { id: fullId },
                 data: {
                     quantityInStock: newStock,
                     quantitySold: newSold,
-                    status: newStatus
+                    status: "IN_WAREHOUSE"
                 }
             })
 
             await tx.product.update({
                 where: { id: fullItem.productId },
                 data: {
-                    stockFull: { decrement: quantity },
-                    stockTotal: { decrement: quantity }
+                    stockFull: { increment: quantity },
+                    stockTotal: { increment: quantity }
                 }
             })
         })
 
         revalidatePath("/full")
         revalidatePath("/inventory")
-        return { success: true, message: "Venta registrada" }
+        return { success: true, message: "Stock revertido correctamente" }
     } catch (e: any) {
-        return { success: false, error: "Error al registrar venta" }
+        return { success: false, error: "Error al revertir stock" }
     }
 }
 

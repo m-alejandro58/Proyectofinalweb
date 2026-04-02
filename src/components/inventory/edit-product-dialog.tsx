@@ -238,6 +238,87 @@ export function EditProductDialog({ product, open, onOpenChange, onSuccess }: { 
                                 />
                             </div>
 
+                            <div className="grid grid-cols-4 items-start gap-4">
+                                <Label htmlFor="edit-imageUrl" className="text-right mt-2">
+                                    📷 Imagen
+                                </Label>
+                                <div className="col-span-3 space-y-2">
+                                    <Input
+                                        id="edit-imageUrl"
+                                        name="imageUrl"
+                                        type="url"
+                                        defaultValue={product.imageUrl ?? ""}
+                                        placeholder="https://ejemplo.com/imagen.jpg"
+                                    />
+                                    <p className="text-xs text-muted-foreground">URL de la imagen principal del producto</p>
+                                    {product.imageUrl && (
+                                        <div className="rounded-lg border overflow-hidden w-24 h-24 bg-muted flex items-center justify-center">
+                                            <img
+                                                src={product.imageUrl}
+                                                alt={product.name}
+                                                className="w-full h-full object-contain"
+                                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            {/* 📦 Logistics Section */}
+                            <div className="border-t pt-4 mt-2">
+                                <Label className="text-sm font-medium">📦 Logística y Envíos (Dimensiones del Paquete)</Label>
+                                <p className="text-xs text-muted-foreground mb-3">Datos requeridos para plataformas de e-commerce</p>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit-weight" className="text-xs text-muted-foreground">Peso (kg)</Label>
+                                        <Input
+                                            id="edit-weight"
+                                            name="weight"
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            defaultValue={product.weight ?? ""}
+                                            placeholder="Ej. 0.5"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit-height" className="text-xs text-muted-foreground">Alto (cm)</Label>
+                                        <Input
+                                            id="edit-height"
+                                            name="height"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            defaultValue={product.height ?? ""}
+                                            placeholder="Ej. 10"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit-pwidth" className="text-xs text-muted-foreground">Ancho (cm)</Label>
+                                        <Input
+                                            id="edit-pwidth"
+                                            name="width"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            defaultValue={product.width ?? ""}
+                                            placeholder="Ej. 5"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="edit-plength" className="text-xs text-muted-foreground">Largo (cm)</Label>
+                                        <Input
+                                            id="edit-plength"
+                                            name="length"
+                                            type="number"
+                                            min="0"
+                                            step="0.1"
+                                            defaultValue={product.length ?? ""}
+                                            placeholder="Ej. 15"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Stock Adjustment Section */}
                             <div className="border-t pt-4 mt-2">
                                 <div className="mb-3">

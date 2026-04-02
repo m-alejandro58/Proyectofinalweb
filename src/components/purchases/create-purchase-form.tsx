@@ -45,6 +45,10 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
     const [accountId, setAccountId] = useState("")
     const [receipt, setReceipt] = useState("")
     const [isTransit, setIsTransit] = useState(false)
+    const [purchaseDate, setPurchaseDate] = useState(() => {
+        const d = new Date()
+        return d.toISOString().split('T')[0]
+    })
 
     // Line Input State
     const [currentProduct, setCurrentProduct] = useState("")
@@ -124,7 +128,8 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
         }
 
         setLoading(true)
-        const res = await createPurchase(providerId, accountId, items, receipt, "", isTransit)
+        const d = purchaseDate ? new Date(purchaseDate + 'T12:00:00Z') : undefined
+        const res = await createPurchase(providerId, accountId, items, receipt, "", isTransit, d)
         if (res.success) {
             router.push("/purchases")
             router.refresh()
@@ -168,6 +173,10 @@ export function CreatePurchaseForm({ providers, accounts, products: initialProdu
                         <div className="grid gap-2">
                             <Label>N° Recibo / Factura</Label>
                             <Input value={receipt} onChange={e => setReceipt(e.target.value)} placeholder="FAC-001" />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label>Fecha de Compra</Label>
+                            <Input type="date" value={purchaseDate} onChange={e => setPurchaseDate(e.target.value)} />
                         </div>
                         <div className="flex items-center space-x-2 pt-2">
                             <input

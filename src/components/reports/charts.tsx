@@ -45,7 +45,7 @@ export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMe
                 <div className="bg-white p-3 border border-gray-200 shadow-md rounded text-sm">
                     <p className="font-semibold mb-1">{label}</p>
                     <p className="text-blue-600">Ventas: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(payload[0].value)}</p>
-                    <p className="text-green-600">Ganancia: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(payload[1].value)}</p>
+                    <p className="text-green-600">Margen Contribución: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(payload[1].value)}</p>
                 </div>
             )
         }
@@ -77,7 +77,7 @@ export function ReportsCharts({ salesOverTime, salesByPlatform, salesByPaymentMe
                             <Tooltip content={<CustomTooltip />} />
                             <Legend wrapperStyle={{ fontSize: '14px', paddingTop: '10px' }} />
                             <Bar dataKey="sales" name="Ventas" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="profit" name="Ganancia Neta" fill="#10b981" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="profit" name="Margen Contribución" fill="#10b981" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </CardContent>

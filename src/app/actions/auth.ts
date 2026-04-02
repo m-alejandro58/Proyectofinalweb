@@ -25,13 +25,13 @@ export async function login(formData: FormData) {
             return { success: false, error: "Usuario desactivado. Contacte al administrador." }
         }
 
-        // Session-only cookie — NO maxAge means it dies when browser closes
+        // Session-only cookie - with maxAge of 12 hours (43200 seconds)
         ; (await cookies()).set("auth_session", user.id, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             path: "/",
-            sameSite: "lax"
-            // NO maxAge or expires → session cookie only
+            sameSite: "lax",
+            maxAge: 43200 // 12 horas de expiración dura
         })
 
         return {

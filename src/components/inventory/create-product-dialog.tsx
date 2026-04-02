@@ -207,6 +207,58 @@ export function CreateProductDialog({ onSuccess }: { onSuccess?: (product: any) 
                             />
                         </div>
 
+                        {/* 📦 Logistics Section */}
+                        <div className="border-t pt-4 mt-2">
+                            <Label className="text-sm font-medium">📦 Logística y Envíos (Dimensiones del Paquete)</Label>
+                            <p className="text-xs text-muted-foreground mb-3">Datos requeridos para plataformas de e-commerce</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label htmlFor="weight" className="text-xs text-muted-foreground">Peso (kg)</Label>
+                                    <Input
+                                        id="weight"
+                                        name="weight"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="Ej. 0.5"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="height" className="text-xs text-muted-foreground">Alto (cm)</Label>
+                                    <Input
+                                        id="height"
+                                        name="height"
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        placeholder="Ej. 10"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="pwidth" className="text-xs text-muted-foreground">Ancho (cm)</Label>
+                                    <Input
+                                        id="pwidth"
+                                        name="width"
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        placeholder="Ej. 5"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="plength" className="text-xs text-muted-foreground">Largo (cm)</Label>
+                                    <Input
+                                        id="plength"
+                                        name="length"
+                                        type="number"
+                                        min="0"
+                                        step="0.1"
+                                        placeholder="Ej. 15"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Initial Stock Section */}
                         <div className="border-t pt-4 mt-2">
                             <div className="flex items-center justify-between mb-4">

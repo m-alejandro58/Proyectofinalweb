@@ -12,6 +12,7 @@ import {
 import { ShieldAlert, Clock, CheckCircle2, DollarSign } from "lucide-react"
 import { CreateClaimDialog } from "@/components/claims/create-claim-dialog"
 import { AdvanceClaimDialog } from "@/components/claims/advance-claim-dialog"
+import { DeleteClaimButton } from "@/components/claims/delete-claim-button"
 
 const STATUS_LABELS: Record<string, string> = {
     INITIATED: "Iniciado",
@@ -177,11 +178,14 @@ export default async function ClaimsPage() {
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {claim.status !== "CLOSED" ? (
-                                            <AdvanceClaimDialog claim={claim} />
-                                        ) : (
-                                            <span className="text-sm text-green-600">✓ Cerrado</span>
-                                        )}
+                                        <div className="flex items-center justify-end gap-1">
+                                            {claim.status !== "CLOSED" ? (
+                                                <AdvanceClaimDialog claim={claim} />
+                                            ) : (
+                                                <span className="text-sm text-green-600">✓ Cerrado</span>
+                                            )}
+                                            <DeleteClaimButton claim={claim} />
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

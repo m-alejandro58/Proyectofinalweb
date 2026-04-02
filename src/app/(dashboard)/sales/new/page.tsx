@@ -1,13 +1,13 @@
 import { getContacts } from "@/app/actions/contacts"
 import { getFinancialAccounts } from "@/app/actions/accounts"
-import { getProducts } from "@/app/actions/inventory"
+import { getProductsForSale } from "@/app/actions/inventory"
 import { CreateSaleForm } from "@/components/sales/create-sale-form"
 
 export default async function NewSalePage() {
     const [contactsRes, accountsRes, productsRes] = await Promise.all([
         getContacts("CLIENT"),
         getFinancialAccounts(),
-        getProducts()
+        getProductsForSale()
     ])
 
     return (

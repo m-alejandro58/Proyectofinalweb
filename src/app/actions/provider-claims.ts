@@ -242,3 +242,56 @@ export async function advanceClaimStatus(
         return { success: false, error: "Error al avanzar reclamación: " + e.message }
     }
 }
+
+export async function deleteProviderClaim(claimId: string) {
+    await requireAuth()
+
+    if (!claimId) {
+        return { success: false, error: "ID de reclamación requerido" }
+    }
+
+    try {
+        const claim = await prisma.providerClaim.findUnique({ where: { id: claimId } })
+        if (!claim) {
+            return { success: false, error: "Reclamación no encontrada" }
+        }
+
+        // Only allow deletion when still in initial state
+        if (claim.status !== "INITIATED") {
+            return {
+                success: false,
+                error: `No se puede eliminar una reclamación en estado "${STATUS_LABELS[claim.status] || claim.status}". Solo se pueden eliminar reclamaciones en estado "Iniciado".`,
+            }
+        }
+
+        // If a refund has been recorded, also block deletion (extra guard)
+        if (claim.refundAmount != null) {
+            return {
+                success: false,
+                error: "No se puede eliminar una reclamación que ya tiene un reembolso registrado.",
+            }
+        }
+
+        await prisma.$transaction(async (tx: any) => {
+            // Delete the claim
+            await tx.providerClaim.delete({ where: { id: claimId } })
+
+            // Reverse inventory: if a product was linked, add the quantity back to stock
+            if (claim.productId) {
+                await tx.product.update({
+                    where: { id: claim.productId },
+                    data: {
+                        stockTotal: { increment: claim.quantity },
+                    },
+                })
+            }
+        })
+
+        revalidatePath("/claims")
+        revalidatePath("/inventory")
+        return { success: true, message: "Reclamación eliminada correctamente" }
+    } catch (e: any) {
+        console.error("Error deleting provider claim:", e)
+        return { success: false, error: "Error al eliminar reclamación: " + e.message }
+    }
+}

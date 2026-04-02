@@ -67,6 +67,10 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
     const [invoice, setInvoice] = useState("")
     const [channel, setChannel] = useState("PRESENCIAL")
     const [paymentMethod, setPaymentMethod] = useState("")
+    const [saleDate, setSaleDate] = useState(() => {
+        const d = new Date()
+        return d.toISOString().split('T')[0] // default to today YYYY-MM-DD
+    })
 
     // Calculator State (all derived from items)
     const [taxes, setTaxes] = useState(0)
@@ -193,7 +197,8 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                 serialNumber: i.serial
             })),
             invoice,
-            paymentMethod || undefined
+            paymentMethod || undefined,
+            saleDate ? new Date(saleDate + 'T12:00:00Z') : undefined
         )
 
         if (res.success) {
@@ -277,6 +282,11 @@ export function CreateSaleForm({ clients: initialClients, accounts, products }: 
                         <div className="grid gap-2">
                             <Label>Factura / Ref (Opcional)</Label>
                             <Input value={invoice} onChange={e => setInvoice(e.target.value)} placeholder="N° Factura..." />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Fecha de la Venta</Label>
+                            <Input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)} />
                         </div>
                     </CardContent>
                 </Card>

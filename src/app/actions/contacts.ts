@@ -4,10 +4,18 @@ import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireAuth } from "@/lib/auth-guard"
 
-export async function getContacts(type?: "PROVIDER" | "CLIENT") {
+export async function getContacts(type?: "PROVIDER" | "CLIENT", queryParam?: string) {
     await requireAuth()
     try {
-        const where = type ? { type } : {}
+        const where: any = type ? { type } : {}
+        if (queryParam) {
+            where.OR = [
+                { name: { contains: queryParam, mode: 'insensitive' } },
+                { email: { contains: queryParam, mode: 'insensitive' } },
+                { govId: { contains: queryParam, mode: 'insensitive' } },
+                { phone: { contains: queryParam, mode: 'insensitive' } }
+            ]
+        }
         const contacts = await prisma.contact.findMany({
             where,
             orderBy: { name: 'asc' }

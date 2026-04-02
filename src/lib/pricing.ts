@@ -2,6 +2,12 @@
 //  Pricing utilities – Publication price calculator
 // ──────────────────────────────────────────────────────────
 
+import { calculatePriceFromMargin, calculateGrossProfit } from "@/utils/finance"
+
+// ── Costos operativos fijos (actualizar aquí cuando cambien) ──
+/** Tarifa base de envío nacional MercadoLibre – Actualizado a $9.200 COP (2026-03-27) */
+export const MELI_BASE_SHIPPING_COST = 9_200
+
 /**
  * Configuración de una plataforma de venta.
  */
@@ -64,7 +70,7 @@ export const DEFAULT_PLATFORMS: PlatformSettings[] = [
         name: "MercadoLibre",
         commissionPercent: 15.5,
         chargesIvaOnCommission: false,
-        fixedShippingCost: 7600,
+        fixedShippingCost: MELI_BASE_SHIPPING_COST,
         bankTaxPercent: 0.4,
         extraTaxes: 3045,
         financingCostPercent: 0,
@@ -126,9 +132,9 @@ export function calculatePublishPrice(
     // Convertir porcentajes a decimales
     const marginDecimal = desiredMarginPercent / 100
 
-    // 1. Calcular la ganancia neta deseada usando la fórmula de margen del Excel
-    const baseTargetPrice = costPrice / (1 - marginDecimal)
-    const desiredNetProfit = baseTargetPrice - costPrice
+    // 1. Calcular precio base y ganancia usando módulo financiero core
+    const baseTargetPrice = calculatePriceFromMargin(costPrice, marginDecimal)
+    const desiredNetProfit = calculateGrossProfit(baseTargetPrice, costPrice)
 
     // 2. Calcular deducciones porcentuales de la plataforma
     const commissionDecimal = platform.commissionPercent / 100

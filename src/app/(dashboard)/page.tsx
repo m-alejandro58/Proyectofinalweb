@@ -2,9 +2,7 @@ import { getDashboardMetrics, getOperationsMetrics, getProductPerformanceMetrics
 import { FinancialDashboard } from "@/components/dashboard/financial-overview"
 import { OperationsOverview } from "@/components/dashboard/operations-overview"
 import { ProductPerformance } from "@/components/dashboard/product-performance"
-import { ShoppingCart, PackagePlus, Users, Package } from "lucide-react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { DashboardQuickActions } from "@/components/dashboard/quick-actions"
 
 export default async function Home() {
   const [result, opsResult, perfResult] = await Promise.all([
@@ -26,29 +24,8 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-4">
-        <Link href="/sales/new">
-          <Button size="lg" className="bg-green-600 hover:bg-green-700">
-            <ShoppingCart className="mr-2 h-5 w-5" /> Nueva Venta
-          </Button>
-        </Link>
-        <Link href="/purchases/new">
-          <Button size="lg" variant="secondary">
-            <PackagePlus className="mr-2 h-5 w-5" /> Registrar Compra
-          </Button>
-        </Link>
-        <Link href="/contacts">
-          <Button size="lg" variant="outline">
-            <Users className="mr-2 h-5 w-5" /> Clientes / Prov.
-          </Button>
-        </Link>
-        <Link href="/inventory">
-          <Button size="lg" variant="ghost">
-            <Package className="mr-2 h-5 w-5" /> Inventario
-          </Button>
-        </Link>
-      </div>
+      {/* Quick Actions + Viabilidad IA Dialog */}
+      <DashboardQuickActions />
 
       <FinancialDashboard metrics={metrics} />
 

@@ -16,26 +16,36 @@ import { SaleDetailsDialog } from "@/components/sales/sale-details-dialog"
 import { EditSaleDialog } from "@/components/sales/edit-sale-dialog"
 import { getFinancialAccounts } from "@/app/actions/accounts"
 import { ExportButton } from "@/components/export-buttons"
+import { SalesSearch } from "@/components/sales/sales-search"
 
-export default async function SalesPage() {
-    const { data: sales } = await getSales()
+export default async function SalesPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ query?: string }>
+}) {
+    const { query: queryRaw } = await searchParams
+    const query = queryRaw || ""
+    const { data: sales } = await getSales(query)
     const { data: accountsRaw } = await getFinancialAccounts()
     const accounts = accountsRaw || []
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Ventas</h1>
                     <p className="text-muted-foreground">Historial de facturación y ganancias.</p>
                 </div>
-                <div className="flex gap-2">
-                    <ExportButton table="sales" label="Exportar CSV" />
-                    <Link href="/sales/new">
-                        <Button className="gap-2">
-                            <Plus className="h-4 w-4" /> Nueva Venta
-                        </Button>
-                    </Link>
+                <div className="flex flex-col sm:flex-row w-full md:w-auto items-center gap-2">
+                    <SalesSearch />
+                    <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                        <ExportButton table="sales" label="Exportar CSV" />
+                        <Link href="/sales/new">
+                            <Button className="gap-2 shrink-0">
+                                <Plus className="h-4 w-4" /> Nueva Venta
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -85,7 +95,7 @@ export default async function SalesPage() {
                             {(!sales || sales.length === 0) && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-24 text-center">
-                                        No hay ventas registradas.
+                                        {query ? `No se encontraron ventas que coincidan con '${query}'.` : "No hay ventas registradas."}
                                     </TableCell>
                                 </TableRow>
                             )}

@@ -6,12 +6,19 @@ import { ClipboardList, PackageCheck, Truck, Clock, CreditCard, PackageSearch, A
 import { Button } from "@/components/ui/button"
 import { CreateOrderDialog } from "@/components/orders/create-order-dialog"
 import { OrderDetailsDialog } from "@/components/orders/order-details-dialog"
+import { OrdersSearch } from "@/components/orders/orders-search"
 
-export default async function OrdersPage() {
+export default async function OrdersPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ query?: string }>
+}) {
+    const { query: queryRaw } = await searchParams
+    const query = queryRaw || ""
     // Auto-release expired reservations (7+ days)
     await autoReleaseExpiredOrders()
 
-    const { data: orders } = await getCustomerOrders()
+    const { data: orders } = await getCustomerOrders(undefined, query)
     const { data: accounts } = await getFinancialAccounts()
 
     const formatCurrency = (amount: number) =>
@@ -90,12 +97,17 @@ export default async function OrdersPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Pedidos, Apartados & Créditos</h1>
                     <p className="text-muted-foreground">Gestiona pedidos, productos separados y créditos directos a clientes.</p>
                 </div>
-                <CreateOrderDialog accounts={accounts || []} />
+                <div className="flex flex-col sm:flex-row w-full md:w-auto items-center gap-2">
+                    <OrdersSearch />
+                    <div className="w-full sm:w-auto mt-2 sm:mt-0">
+                        <CreateOrderDialog accounts={accounts || []} />
+                    </div>
+                </div>
             </div>
 
             {/* Summary Cards */}
@@ -228,8 +240,14 @@ export default async function OrdersPage() {
                                     <tr>
                                         <td colSpan={9} className="text-center py-12 text-muted-foreground">
                                             <ClipboardList className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                                            <p>No hay pedidos ni apartados registrados.</p>
-                                            <p className="text-xs mt-1">Crea uno con el botón superior.</p>
+                                            {query ? (
+                                                <p>No se encontraron pedidos que coincidan con &apos;{query}&apos;.</p>
+                                            ) : (
+                                                <>
+                                                    <p>No hay pedidos ni apartados registrados.</p>
+                                                    <p className="text-xs mt-1">Crea uno con el botón superior.</p>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 )}

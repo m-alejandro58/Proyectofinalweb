@@ -13,7 +13,8 @@ import {
     ClipboardList,
     ShieldAlert,
     Warehouse,
-    Settings
+    Settings,
+    Building2
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -51,6 +52,7 @@ const allItems = [
     { title: "MercadoLibre FULL", url: "/full", icon: Warehouse, perm: "canManageOrders" },
     { title: "Compras & Proveedores", url: "/purchases", icon: ShoppingCart, perm: "canManageInventory" },
     { title: "Inventario", url: "/inventory", icon: Package, perm: "canManageInventory" },
+    { title: "Activos Fijos (PP&E)", url: "/assets", icon: Building2, perm: "canManageFinances" },
     { title: "Gastos Operativos", url: "/expenses", icon: Receipt, perm: "canManageFinances" },
     { title: "Contactos (CRM)", url: "/contacts", icon: Users, perm: "canManageContacts" },
     { title: "Pedidos / Apartados", url: "/orders", icon: ClipboardList, perm: "canManageOrders" },

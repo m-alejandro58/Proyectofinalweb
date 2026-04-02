@@ -3,6 +3,12 @@
 import { prisma } from "@/lib/db"
 import { startOfMonth, endOfMonth, startOfDay, endOfDay } from "date-fns"
 import { requireAuth } from "@/lib/auth-guard"
+import {
+    calculateGrossProfit,
+    calculateOperatingProfit,
+    calculateNetProfit,
+    calculateMarginPercentage,
+} from "@/utils/finance"
 
 export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) {
     await requireAuth()
@@ -33,16 +39,12 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
         const totalPlatformFees = sales.reduce((sum, sale) => sum + (sale.platformFee || 0), 0)
         const totalTaxes = sales.reduce((sum, sale) => sum + (sale.taxes || 0), 0) // Retenciones
 
-        // 1. Gross Profit (Ganancia Bruta)
-        // Formula: Sales - COGS
-        // Note: User must ensure 'unitCost' in Inventory Batches includes (Purchase Price + Import Tax + Inbound Freight).
-        // FIX: If COGS is 0 (missing data), assume 60% of Sales as 'Costo Amazon + Importación' for testing.
-        const grossProfit = totalSales - totalCOGS
+        // ── 1. Ganancia Bruta = Ventas - COGS ──────────────────────────
+        // unitCost debe incluir costo compra + fletes + impuestos de importación
+        const grossProfit = calculateGrossProfit(totalSales, totalCOGS)
 
-        // 2. Operating Profit (Utilidad Operativa / EBIT)
-        // Formula: Gross - Operating Expenses - Platform Fees - Outbound Shipping
-
-        // Expenses from DB (Marketing, Admin, etc)
+        // ── 2. Ganancia Operativa (EBIT) ────────────────────────────────
+        // Gross - Comisiones plataforma - Envíos - Gastos Operativos (Ads/Admin)
         const expenses = await prisma.expense.findMany({
             where: { date: { gte: start, lte: end } }
         })
@@ -53,24 +55,25 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
         })
         const totalOperatingExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0)
 
-        const operatingProfit = grossProfit - totalPlatformFees - totalShipping - totalOperatingExpenses
+        // totalPlatformFees + totalShipping son costos directos de venta (van en operativo)
+        const operatingProfit = calculateOperatingProfit(
+            grossProfit,
+            totalPlatformFees + totalShipping + totalOperatingExpenses
+        )
 
-        // 3. Net Profit (Utilidad Neta)
-        // Formula specified by user: Operating - (Operating * 1% ICA) - (Sales * 4x1000 GMF)
-
-        // A. ICA Santa Rosa (1% of Operating Profit as per user instruction, usually on Sales but following instruction)
-        // Instruction: "(Ganancia_Operativa * 0.01)"
+        // ── 3. Ganancia Neta ─────────────────────────────────────────────
+        // A. ICA: 1% sobre Ganancia Operativa (instrucción del usuario)
         const taxICA = operatingProfit * 0.01
-
-        // B. GMF (4x1000): 0.4% on Sales (as per instruction "(Ventas * 0.004)")
+        // B. GMF: 4x1000 sobre Ventas Totales
         const taxGMF = totalSales * 0.004
-
-        // C. Renta removed.
+        // C. Retención en fuente (campo taxes de la venta)
         const taxRenta = 0
 
         const totalTaxProvisions = taxICA + taxGMF + taxRenta + totalTaxes
 
-        const netProfit = operatingProfit - totalTaxProvisions
+        // calculateNetProfit(operatingProfit, taxes, financialExpenses)
+        // financialExpenses = 0 (no hay deuda financiera separada aquí)
+        const netProfit = calculateNetProfit(operatingProfit, totalTaxProvisions, 0)
 
         const finalBalance = netProfit
 
@@ -128,7 +131,13 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
             }
         })
 
-
+        // 4. FIXED ASSETS (PP&E) — active assets only
+        const fixedAssets = await (prisma as any).fixedAsset.findMany({
+            where: { status: 'ACTIVO' }
+        })
+        const fixedAssetsTotalCurrentValue = fixedAssets.reduce((sum: number, a: any) => sum + a.currentValue, 0)
+        const fixedAssetsTotalPurchaseValue = fixedAssets.reduce((sum: number, a: any) => sum + a.purchaseValue, 0)
+        const fixedAssetsCount = fixedAssets.length
         return {
             success: true,
             data: {
@@ -158,10 +167,11 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
                     net: netProfit,
                     finalBalance: finalBalance,
                     margins: {
-                        gross: totalSales > 0 ? (grossProfit / totalSales) * 100 : 0,
-                        operating: totalSales > 0 ? (operatingProfit / totalSales) * 100 : 0,
-                        net: totalSales > 0 ? (netProfit / totalSales) * 100 : 0,
-                        final: totalSales > 0 ? (finalBalance / totalSales) * 100 : 0
+                        // calculateMarginPercentage(cost, sellingPrice) = (price-cost)/price * 100
+                        gross: calculateMarginPercentage(totalCOGS, totalSales),
+                        operating: calculateMarginPercentage(totalSales - operatingProfit, totalSales),
+                        net: calculateMarginPercentage(totalSales - netProfit, totalSales),
+                        final: calculateMarginPercentage(totalSales - finalBalance, totalSales)
                     }
                 },
                 inventory: {
@@ -172,6 +182,11 @@ export async function getDashboardMetrics(dateRange?: { from: Date, to: Date }) 
                     liquidity,
                     debt: totalDebt,
                     receivables
+                },
+                fixedAssets: {
+                    totalCurrentValue: fixedAssetsTotalCurrentValue,
+                    totalPurchaseValue: fixedAssetsTotalPurchaseValue,
+                    count: fixedAssetsCount,
                 }
             }
         }
@@ -258,7 +273,9 @@ export async function getProductPerformanceMetrics(
             totalQty: number
             totalRevenue: number
             totalCost: number
-            totalProfit: number
+            // Contribución Bruta = Revenue - COGS
+            // (sin comisiones de plataforma ni envíos, ya que esos no se guardan por ítem sino por venta)
+            totalContribution: number
         }>()
 
         for (const sale of sales) {
@@ -269,14 +286,15 @@ export async function getProductPerformanceMetrics(
                     totalQty: 0,
                     totalRevenue: 0,
                     totalCost: 0,
-                    totalProfit: 0,
+                    totalContribution: 0,
                 }
                 const revenue = item.quantity * item.unitPrice
                 const cost = item.quantity * (item.unitCost || 0)
                 existing.totalQty += item.quantity
                 existing.totalRevenue += revenue
                 existing.totalCost += cost
-                existing.totalProfit += revenue - cost
+                // Contribución Bruta: Revenue - COGS (sin fees/envío que van a nivel de Venta)
+                existing.totalContribution += calculateGrossProfit(revenue, cost)
                 productMap.set(key, existing)
             }
         }
@@ -293,15 +311,16 @@ export async function getProductPerformanceMetrics(
                 totalRevenue: p.totalRevenue,
             }))
 
-        // Top 5 most profitable (by net profit)
+        // Top 5 más rentables (por Contribución Bruta: Revenue - COGS)
+        // NOTA: No es Ganancia Neta porque las comisiones/envíos no están disponibles por ítem
         const topROI = [...allProducts]
-            .sort((a, b) => b.totalProfit - a.totalProfit)
+            .sort((a, b) => b.totalContribution - a.totalContribution)
             .slice(0, 5)
             .map((p) => ({
                 name: p.name,
-                totalProfit: p.totalProfit,
+                totalProfit: p.totalContribution, // Mantiene clave 'totalProfit' para compatibilidad de UI
                 marginPercent: p.totalRevenue > 0
-                    ? Math.round((p.totalProfit / p.totalRevenue) * 100)
+                    ? Math.round(calculateMarginPercentage(p.totalCost, p.totalRevenue))
                     : 0,
             }))
 

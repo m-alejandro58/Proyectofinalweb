@@ -12,6 +12,7 @@ import {
 import { TransactionRow } from "@/app/actions/reports"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { Info } from "lucide-react"
 
 interface TransactionsTableProps {
     data: TransactionRow[]
@@ -52,7 +53,17 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                         <TableHead className="text-right">Comisión</TableHead>
                         <TableHead className="text-right">Envío</TableHead>
                         <TableHead className="text-right">Impuestos*</TableHead>
-                        <TableHead className="text-right font-bold text-green-600 dark:text-green-400">Utilidad Neta</TableHead>
+                        <TableHead className="text-right font-bold text-green-600 dark:text-green-400">
+                            <span className="inline-flex items-center gap-1">
+                                Margen Contribución
+                                <span
+                                    title="Venta - COGS - Comisión - Envío - Impuestos Directos (sin incluir Gastos Operativos fijos como Ads/Admin)"
+                                    className="cursor-help"
+                                >
+                                    <Info className="h-3 w-3 text-muted-foreground" />
+                                </span>
+                            </span>
+                        </TableHead>
                         <TableHead className="text-right">% Margen</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -117,8 +128,9 @@ export function TransactionsTable({ data }: TransactionsTableProps) {
                     </TableFooter>
                 )}
             </Table>
-            <div className="p-2 text-xs text-muted-foreground bg-muted/20 border-t">
-                *Impuestos incluye: Retenciones de la venta + GMF (4x1000) de la venta + ICA (1%) de la utilidad operativa.
+            <div className="p-2 text-xs text-muted-foreground bg-muted/20 border-t space-y-1">
+                <p>* <strong>Margen de Contribución</strong> = Venta − COGS − Comisión − Envío − Impuestos directos (Ret. + GMF + ICA proporcional). <em>No incluye Gastos Operativos fijos.</em></p>
+                <p>* <strong>Ganancia Neta del Período</strong> (en el resumen): el total de margen de contribución menos los Gastos Operativos (Ads, Admin, etc.) del período completo — alineado con el Dashboard.</p>
             </div>
         </div>
     )

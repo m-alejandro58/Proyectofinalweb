@@ -23,6 +23,7 @@ export async function createExpense(formData: FormData) {
     const category = formData.get("category") as string
     const amount = parseFloat(formData.get("amount") as string)
     const accountId = formData.get("accountId") as string
+    const expenseDate = formData.get("expenseDate") as string
 
     if (!description || !amount || !accountId) return { success: false, error: "Datos incompletos" }
 
@@ -35,7 +36,7 @@ export async function createExpense(formData: FormData) {
                     category,
                     amount,
                     financialAccountId: accountId,
-                    date: new Date()
+                    date: expenseDate ? new Date(expenseDate + "T12:00:00Z") : new Date()
                 }
             })
 

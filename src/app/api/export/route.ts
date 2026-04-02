@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
 import { prisma } from "@/lib/db"
 
 // CSV Export for: contacts, products, sales, returns, purchases
@@ -8,6 +9,16 @@ export async function GET(request: NextRequest) {
 
     if (!table) {
         return NextResponse.json({ error: "Tabla no especificada" }, { status: 400 })
+    }
+
+    const sessionId = (await cookies()).get("auth_session")?.value
+    if (!sessionId) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: sessionId } })
+    if (!user || user.role !== "ADMIN") {
+        return NextResponse.json({ error: "Acceso denegado. Solo administradores pueden exportar datos." }, { status: 403 })
     }
 
     try {

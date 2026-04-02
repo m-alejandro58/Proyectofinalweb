@@ -54,7 +54,7 @@ export default function LoginPage() {
                 <CardHeader className="flex flex-col items-center pb-2">
                     <div className="mb-6 relative w-32 h-32">
                         <Image
-                            src="/logo.png"
+                            src="/HardsoftBlack&White.png"
                             alt="HardSoft Logo"
                             fill
                             className="object-contain"

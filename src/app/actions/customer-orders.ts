@@ -44,7 +44,17 @@ type PaymentInput = {
 export async function createCustomerOrder(input: CreateOrderInput) {
     await requireAuth()
     if (!input.clientId || !input.description || input.agreedPrice <= 0) {
-        return { success: false, error: "Datos incompletos" }
+        return { success: false, error: "Datos incompletos o precio inválido" }
+    }
+
+    if (input.quantity <= 0) {
+        return { success: false, error: "La cantidad debe ser mayor a 0" }
+    }
+
+    if (input.items) {
+        for (const item of input.items) {
+            if (item.quantity <= 0 || item.unitPrice < 0) return { success: false, error: "Cantidades de items deben ser positivas" }
+        }
     }
 
     if (input.type === "LAYAWAY" && !input.productId) {
@@ -349,7 +359,7 @@ export async function createCustomerOrder(input: CreateOrderInput) {
 }
 
 // ---- Get Orders ----
-export async function getCustomerOrders(filter?: { type?: string, status?: string }) {
+export async function getCustomerOrders(filter?: { type?: string, status?: string }, queryParam?: string) {
     await requireAuth()
     try {
         const where: any = {}
@@ -358,6 +368,13 @@ export async function getCustomerOrders(filter?: { type?: string, status?: strin
         }
         if (filter?.status && filter.status !== "ALL") {
             where.status = filter.status
+        }
+        if (queryParam) {
+            where.OR = [
+                { description: { contains: queryParam, mode: 'insensitive' } },
+                { client: { name: { contains: queryParam, mode: 'insensitive' } } },
+                { items: { some: { productName: { contains: queryParam, mode: 'insensitive' } } } }
+            ]
         }
 
         const orders = await prisma.customerOrder.findMany({

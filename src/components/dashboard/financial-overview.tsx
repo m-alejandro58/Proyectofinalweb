@@ -1,7 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DollarSign, CreditCard, TrendingUp, TrendingDown, Activity, ShoppingCart, Package, Truck, Wallet } from "lucide-react"
+import { DollarSign, CreditCard, TrendingUp, TrendingDown, Activity, ShoppingCart, Package, Truck, Wallet, Building2, Landmark } from "lucide-react"
 
 export function FinancialDashboard({ metrics }: { metrics: any }) {
 
@@ -56,6 +56,55 @@ export function FinancialDashboard({ metrics }: { metrics: any }) {
                         <p className="text-xs text-rose-200">Tarjetas y Préstamos</p>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Patrimonio Total */}
+            <div className="grid gap-4 grid-cols-1">
+                {(() => {
+                    const fixedAssetsValue = metrics.fixedAssets?.totalCurrentValue ?? 0
+                    const patrimonio = metrics.financials.liquidity + metrics.inventory.totalValue + fixedAssetsValue
+                    const deprPct = metrics.fixedAssets?.totalPurchaseValue > 0
+                        ? ((1 - fixedAssetsValue / metrics.fixedAssets.totalPurchaseValue) * 100).toFixed(1)
+                        : null
+                    return (
+                        <Card className="border-2 border-amber-300 dark:border-amber-700 bg-gradient-to-r from-amber-50 via-yellow-50 to-white dark:from-amber-950/30 dark:via-yellow-950/20 dark:to-transparent">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+                                    <Landmark className="h-5 w-5" />
+                                    Patrimonio Empresarial Estimado
+                                    <span className="ml-auto text-2xl font-bold text-amber-900 dark:text-amber-200">
+                                        {formatCurrency(patrimonio)}
+                                    </span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-3 gap-4 text-sm">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <Wallet className="h-3 w-3" /> Liquidez (Caja + Bancos)
+                                        </span>
+                                        <span className="font-semibold text-sky-700 dark:text-sky-400">{formatCurrency(metrics.financials.liquidity)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <Package className="h-3 w-3" /> Inventario (Costo)
+                                        </span>
+                                        <span className="font-semibold text-indigo-700 dark:text-indigo-400">{formatCurrency(metrics.inventory.totalValue)}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                            <Building2 className="h-3 w-3" /> Activos Fijos (PP&amp;E)
+                                        </span>
+                                        <span className="font-semibold text-amber-700 dark:text-amber-400">{formatCurrency(fixedAssetsValue)}</span>
+                                        {deprPct && (
+                                            <span className="text-[10px] text-orange-500">{metrics.fixedAssets?.count ?? 0} activos · depr. {deprPct}%</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )
+                })()}
             </div>
 
             {/* Middle Row: Profitability & Breakdown */}
