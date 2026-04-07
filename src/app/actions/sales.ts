@@ -331,8 +331,9 @@ export async function getSales(queryParam?: string) {
             orderBy: { date: 'desc' }
         })
         return { success: true, data: sales }
-    } catch (error) {
-        return { success: false, error: "Error load" }
+    } catch (error: any) { // eslint-disable-line
+        console.error("Error fetching sales:", error)
+        return { success: false, error: error.message || "Error load" }
     }
 }
 

@@ -17,6 +17,8 @@ import { EditSaleDialog } from "@/components/sales/edit-sale-dialog"
 import { getFinancialAccounts } from "@/app/actions/accounts"
 import { ExportButton } from "@/components/export-buttons"
 import { SalesSearch } from "@/components/sales/sales-search"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { AlertCircle } from "lucide-react"
 
 export default async function SalesPage({
     searchParams,
@@ -25,7 +27,10 @@ export default async function SalesPage({
 }) {
     const { query: queryRaw } = await searchParams
     const query = queryRaw || ""
-    const { data: sales } = await getSales(query)
+    const result = await getSales(query)
+    const sales = result.data
+    const error = result.success ? null : result.error
+    
     const { data: accountsRaw } = await getFinancialAccounts()
     const accounts = accountsRaw || []
 
@@ -49,6 +54,16 @@ export default async function SalesPage({
                 </div>
             </div>
 
+            {error && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error al cargar las ventas</AlertTitle>
+                    <AlertDescription>
+                        {error}. Por favor intenta recargar la página o contacta a soporte.
+                    </AlertDescription>
+                </Alert>
+            )}
+
             <Card>
                 <CardContent className="p-0">
                     <Table>
@@ -67,16 +82,16 @@ export default async function SalesPage({
                             {sales?.map((s: any) => (
                                 <TableRow key={s.id}>
                                     <TableCell className="text-sm">
-                                        {s.date.toLocaleDateString()}
+                                        {s.date ? new Date(s.date).toLocaleDateString() : 'N/A'}
                                     </TableCell>
                                     <TableCell className="font-medium">
-                                        {s.client?.name}
+                                        {s.client?.name || 'Cliente Desconocido'}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant="outline">{s.channel}</Badge>
+                                        <Badge variant="outline">{s.channel || 'N/A'}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        ${s.grossAmount.toLocaleString()}
+                                        ${(s.grossAmount || 0).toLocaleString()}
                                     </TableCell>
                                     <TableCell className="text-right text-destructive text-xs">
                                         -${((s.platformFee || 0) + (s.shippingCost || 0) + (s.taxes || 0)).toLocaleString()}
