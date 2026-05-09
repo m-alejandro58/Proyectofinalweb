@@ -339,1042 +339,423 @@ export default async function ReportsPage({
         salesByPaymentMethod={charts.salesByPaymentMethod}
       />
 
-      {/* CUSTOMER ANALYTICS */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Customer Analytics
-            </h2>
+      {/* ============================= DYNAMIC ANALYTICS ============================= */}
 
-            <p className="text-sm text-slate-400">
-              Comportamiento y valor de clientes
-            </p>
-          </div>
-        </div>
+      {(() => {
+        const totalTransactions = data.transactions.length;
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {/* RECURRENT CLIENTS */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Clientes Recurrentes</p>
+        const recurrentClientsMap: Record<string, number> = {};
+        data.transactions.forEach((t) => {
+          recurrentClientsMap[t.clientName] =
+            (recurrentClientsMap[t.clientName] || 0) + 1;
+        });
 
-            <div className="text-3xl font-bold text-white">38%</div>
+        const recurrentClients = Object.values(recurrentClientsMap).filter(
+          (v) => v > 1,
+        ).length;
 
-            <p className="text-xs text-emerald-400 mt-2">↑ +12% este mes</p>
-          </div>
+        const recurrentPct =
+          totalTransactions > 0
+            ? ((recurrentClients / totalTransactions) * 100).toFixed(0)
+            : "0";
 
-          {/* PURCHASE FREQUENCY */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Frecuencia de Compra</p>
+        const purchaseFrequency =
+          Object.keys(recurrentClientsMap).length > 0
+            ? (
+                totalTransactions / Object.keys(recurrentClientsMap).length
+              ).toFixed(1)
+            : "0";
 
-            <div className="text-3xl font-bold text-white">2.8x</div>
+        const topClientEntry = Object.entries(recurrentClientsMap).sort(
+          (a, b) => b[1] - a[1],
+        )[0];
 
-            <p className="text-xs text-slate-400 mt-2">Compras promedio</p>
-          </div>
+        const topClientSales = data.transactions
+          .filter((t) => t.clientName === topClientEntry?.[0])
+          .reduce((sum, t) => sum + t.grossAmount, 0);
 
-          {/* TOP CLIENT */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Top Cliente</p>
+        const ltv =
+          Object.keys(recurrentClientsMap).length > 0
+            ? summary.totalSales / Object.keys(recurrentClientsMap).length
+            : 0;
 
-            <div className="text-lg font-bold text-white truncate">
-              Carlos Ramírez
-            </div>
+        const salesByWeekDay: Record<string, number> = {
+          Lunes: 0,
+          Martes: 0,
+          Miércoles: 0,
+          Jueves: 0,
+          Viernes: 0,
+          Sábado: 0,
+          Domingo: 0,
+        };
 
-            <p className="text-xs text-slate-400 mt-2">$4.2M en compras</p>
-          </div>
+        data.transactions.forEach((t) => {
+          const day = new Date(t.date).toLocaleDateString("es-CO", {
+            weekday: "long",
+          });
 
-          {/* LTV */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">LTV Estimado</p>
+          const formatted =
+            day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
 
-            <div className="text-3xl font-bold text-white">$820K</div>
+          if (salesByWeekDay[formatted] !== undefined) {
+            salesByWeekDay[formatted] += t.grossAmount;
+          }
+        });
 
-            <p className="text-xs text-slate-400 mt-2">
-              Valor promedio cliente
-            </p>
-          </div>
-        </div>
-      </div>
+        const maxWeekSales = Math.max(...Object.values(salesByWeekDay));
 
-      {/* DEMOGRAPHICS */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Demografía de Clientes
-            </h2>
+        const bestDay = Object.entries(salesByWeekDay).sort(
+          (a, b) => b[1] - a[1],
+        )[0];
 
-            <p className="text-sm text-slate-400">
-              Segmentación por género, edad y ubicación
-            </p>
-          </div>
-        </div>
+        const operatingCostPct =
+          summary.totalSales > 0
+            ? (
+                ((summary.totalCommissions +
+                  summary.totalShipping +
+                  summary.totalExpenses) /
+                  summary.totalSales) *
+                100
+              ).toFixed(0)
+            : "0";
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* GENDER DISTRIBUTION */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-white">Género</h3>
+        const taxImpact = data.transactions.reduce(
+          (sum, t) => sum + t.taxes + t.gmf + t.ica,
+          0,
+        );
 
-              <span className="text-xs text-slate-400">Distribución</span>
-            </div>
+        const roi =
+          summary.totalExpenses > 0
+            ? ((summary.totalProfit / summary.totalExpenses) * 100).toFixed(0)
+            : "0";
 
-            <div className="space-y-5">
-              {/* MEN */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-slate-300">Hombres</span>
+        const totalCOGS = data.transactions.reduce((s, t) => s + t.cogs, 0);
 
-                  <span className="text-sm font-semibold text-white">58%</span>
-                </div>
+        const costStructure = [
+          {
+            label: "Inventario / COGS",
+            value:
+              summary.totalSales > 0
+                ? (totalCOGS / summary.totalSales) * 100
+                : 0,
+            amount: totalCOGS,
+            color: "bg-blue-500",
+          },
+          {
+            label: "Comisiones",
+            value:
+              summary.totalSales > 0
+                ? (summary.totalCommissions / summary.totalSales) * 100
+                : 0,
+            amount: summary.totalCommissions,
+            color: "bg-pink-500",
+          },
+          {
+            label: "Envíos",
+            value:
+              summary.totalSales > 0
+                ? (summary.totalShipping / summary.totalSales) * 100
+                : 0,
+            amount: summary.totalShipping,
+            color: "bg-orange-500",
+          },
+          {
+            label: "Operación",
+            value:
+              summary.totalSales > 0
+                ? (summary.totalExpenses / summary.totalSales) * 100
+                : 0,
+            amount: summary.totalExpenses,
+            color: "bg-emerald-500",
+          },
+        ];
 
-                <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-blue-500"
-                    style={{ width: "58%" }}
-                  />
-                </div>
-              </div>
+        return (
+          <>
+            {/* CUSTOMER ANALYTICS */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">
+                    Customer Analytics
+                  </h2>
 
-              {/* WOMEN */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-slate-300">Mujeres</span>
-
-                  <span className="text-sm font-semibold text-white">42%</span>
-                </div>
-
-                <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-pink-500"
-                    style={{ width: "42%" }}
-                  />
+                  <p className="text-sm text-slate-400">
+                    Comportamiento y valor de clientes
+                  </p>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* AGE RANGES */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-white">Rango de Edad</h3>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">
+                    Clientes Recurrentes
+                  </p>
 
-              <span className="text-xs text-slate-400">Clientes activos</span>
-            </div>
-
-            <div className="space-y-4">
-              {[
-                { label: "18-24", value: 18 },
-                { label: "25-34", value: 42 },
-                { label: "35-44", value: 26 },
-                { label: "45-54", value: 10 },
-                { label: "55+", value: 4 },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm text-slate-300">{item.label}</span>
-
-                    <span className="text-sm text-white font-semibold">
-                      {item.value}%
-                    </span>
+                  <div className="text-3xl font-bold text-white">
+                    {recurrentPct}%
                   </div>
 
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500"
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
+                  <p className="text-xs text-emerald-400 mt-2">
+                    {recurrentClients} clientes frecuentes
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* TOP LOCATIONS */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-semibold text-white">Top Ubicaciones</h3>
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">
+                    Frecuencia de Compra
+                  </p>
 
-              <span className="text-xs text-slate-400">
-                Ciudades principales
-              </span>
-            </div>
-
-            <div className="space-y-4">
-              {[
-                {
-                  city: "Bogotá",
-                  value: "$12.4M",
-                  pct: "38%",
-                },
-                {
-                  city: "Medellín",
-                  value: "$8.2M",
-                  pct: "24%",
-                },
-                {
-                  city: "Cali",
-                  value: "$5.1M",
-                  pct: "16%",
-                },
-                {
-                  city: "Barranquilla",
-                  value: "$2.7M",
-                  pct: "9%",
-                },
-              ].map((city) => (
-                <div
-                  key={city.city}
-                  className="
-                            flex
-                            items-center
-                            justify-between
-                            rounded-xl
-                            border
-                            border-white/5
-                            bg-slate-900/60
-                            px-4
-                            py-3
-                        "
-                >
-                  <div>
-                    <p className="font-medium text-white">{city.city}</p>
-
-                    <p className="text-xs text-slate-400">
-                      {city.pct} de ventas
-                    </p>
+                  <div className="text-3xl font-bold text-white">
+                    {purchaseFrequency}x
                   </div>
 
-                  <div className="text-sm font-bold text-emerald-400">
-                    {city.value}
-                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Compras promedio cliente
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* PRODUCT ANALYTICS */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Product Analytics
-            </h2>
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Top Cliente</p>
 
-            <p className="text-sm text-slate-400">
-              Rendimiento, rotación y rentabilidad de productos
-            </p>
-          </div>
-        </div>
+                  <div className="text-lg font-bold text-white truncate">
+                    {topClientEntry?.[0] || "N/A"}
+                  </div>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          {/* TOP PRODUCTS */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">Top Productos</h3>
+                  <p className="text-xs text-slate-400 mt-2">
+                    {formatCurrency(topClientSales)} en compras
+                  </p>
+                </div>
 
-                <p className="text-xs text-slate-400 mt-1">
-                  Mayor volumen de ventas
-                </p>
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">LTV Estimado</p>
+
+                  <div className="text-3xl font-bold text-white">
+                    {formatCurrency(ltv)}
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    Valor promedio cliente
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {[
-                {
-                  name: "RTX 4060",
-                  units: 84,
-                  revenue: "$38.4M",
-                  pct: 82,
-                },
-                {
-                  name: "Ryzen 7 5700X",
-                  units: 61,
-                  revenue: "$21.1M",
-                  pct: 61,
-                },
-                {
-                  name: "SSD NVMe 1TB",
-                  units: 48,
-                  revenue: "$9.8M",
-                  pct: 48,
-                },
-                {
-                  name: "Fuente 750W Gold",
-                  units: 35,
-                  revenue: "$7.2M",
-                  pct: 35,
-                },
-              ].map((product) => (
-                <div key={product.name}>
-                  <div className="flex items-center justify-between mb-2">
+            {/* PERFORMANCE ANALYTICS */}
+            <div className="mt-8">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">
+                    Performance Analytics
+                  </h2>
+
+                  <p className="text-sm text-slate-400">
+                    Tendencias y comportamiento comercial
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Mejor Día</p>
+
+                  <div className="text-2xl font-bold text-white">
+                    {bestDay?.[0] || "N/A"}
+                  </div>
+
+                  <p className="text-xs text-emerald-400 mt-2">
+                    {formatCurrency(bestDay?.[1] || 0)}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Ticket Promedio</p>
+
+                  <div className="text-2xl font-bold text-white">
+                    {formatCurrency(
+                      totalTransactions > 0
+                        ? summary.totalSales / totalTransactions
+                        : 0,
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    Valor promedio venta
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Margen Neto</p>
+
+                  <div className="text-2xl font-bold text-emerald-400">
+                    {avgMargin}%
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    Rentabilidad actual
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Forecast</p>
+
+                  <div className="text-2xl font-bold text-blue-400">
+                    {formatCurrency(summary.totalSales * 1.15)}
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    Proyección estimada
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 xl:grid-cols-2">
+                {/* WEEK PERFORMANCE */}
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-6 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
                     <div>
-                      <p className="text-sm font-medium text-white">
-                        {product.name}
-                      </p>
+                      <h3 className="font-semibold text-white">
+                        Rendimiento Semanal
+                      </h3>
 
-                      <p className="text-xs text-slate-400">
-                        {product.units} unidades vendidas
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-emerald-400">
-                        {product.revenue}
+                      <p className="text-xs text-slate-400 mt-1">
+                        Actividad comercial por día
                       </p>
                     </div>
                   </div>
 
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-500"
-                      style={{ width: `${product.pct}%` }}
-                    />
+                  <div className="space-y-4">
+                    {Object.entries(salesByWeekDay).map(([day, value]) => {
+                      const pct =
+                        maxWeekSales > 0 ? (value / maxWeekSales) * 100 : 0;
+
+                      return (
+                        <div key={day}>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm text-slate-300">
+                              {day}
+                            </span>
+
+                            <span className="text-sm text-white font-semibold">
+                              {formatCurrency(value)}
+                            </span>
+                          </div>
+
+                          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-blue-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* CATEGORY PERFORMANCE */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">Categorías</h3>
+                {/* FINANCIAL */}
+                <div className="rounded-2xl border border-white/5 bg-[#111827] p-6 shadow-lg">
+                  <div className="flex items-center justify-between mb-6">
+                    <div>
+                      <h3 className="font-semibold text-white">
+                        Estructura Financiera
+                      </h3>
 
-                <p className="text-xs text-slate-400 mt-1">
-                  Margen y participación
-                </p>
-              </div>
-            </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Distribución de costos
+                      </p>
+                    </div>
+                  </div>
 
-            <div className="space-y-4">
-              {[
-                {
-                  category: "Tarjetas Gráficas",
-                  sales: "$58M",
-                  margin: "28%",
-                  color: "bg-blue-500",
-                },
-                {
-                  category: "Procesadores",
-                  sales: "$31M",
-                  margin: "24%",
-                  color: "bg-emerald-500",
-                },
-                {
-                  category: "Almacenamiento",
-                  sales: "$14M",
-                  margin: "19%",
-                  color: "bg-orange-500",
-                },
-                {
-                  category: "Fuentes",
-                  sales: "$9M",
-                  margin: "17%",
-                  color: "bg-pink-500",
-                },
-              ].map((cat) => (
-                <div
-                  key={cat.category}
-                  className="
-                            rounded-xl
-                            border
-                            border-white/5
-                            bg-slate-900/60
-                            p-4
-                        "
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`h-3 w-3 rounded-full ${cat.color}`} />
+                  <div className="space-y-5">
+                    {costStructure.map((item) => (
+                      <div key={item.label}>
+                        <div className="flex justify-between mb-2">
+                          <div>
+                            <p className="text-sm text-white font-medium">
+                              {item.label}
+                            </p>
 
-                      <div>
-                        <p className="text-sm font-medium text-white">
-                          {cat.category}
-                        </p>
+                            <p className="text-xs text-slate-400">
+                              {item.value.toFixed(1)}% del total
+                            </p>
+                          </div>
 
-                        <p className="text-xs text-slate-400">Ventas Totales</p>
+                          <div className="text-sm font-bold text-white">
+                            {formatCurrency(item.amount)}
+                          </div>
+                        </div>
+
+                        <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${item.color}`}
+                            style={{ width: `${item.value}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-white">
-                        {cat.sales}
-                      </p>
-
-                      <p className="text-xs text-emerald-400">
-                        Margen {cat.margin}
-                      </p>
-                    </div>
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* PRODUCT INSIGHTS */}
-        <div
-          className="
-        mt-6
-        rounded-2xl
-        border
-        border-blue-500/10
-        bg-gradient-to-r
-        from-blue-500/10
-        to-cyan-500/5
-        p-6
-    "
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-2 w-2 rounded-full bg-blue-500" />
-
-            <h3 className="font-semibold text-white">Insights de Productos</h3>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <p className="text-xs text-slate-400 mb-1">
-                Producto Más Vendido
-              </p>
-
-              <p className="font-semibold text-white">RTX 4060</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-400 mb-1">Mayor Margen</p>
-
-              <p className="font-semibold text-emerald-400">
-                Tarjetas Gráficas
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-400 mb-1">Mayor Rotación</p>
-
-              <p className="font-semibold text-white">SSD NVMe</p>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-400 mb-1">Tendencia</p>
-
-              <p className="font-semibold text-blue-400">↑ Gaming +22%</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* PERFORMANCE ANALYTICS */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Performance Analytics
-            </h2>
-
-            <p className="text-sm text-slate-400">
-              Tendencias, rendimiento y comportamiento comercial
-            </p>
-          </div>
-        </div>
-
-        {/* KPI PERFORMANCE */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Mejor Día</p>
-
-            <div className="text-2xl font-bold text-white">Viernes</div>
-
-            <p className="text-xs text-emerald-400 mt-2">↑ 32% más ventas</p>
-          </div>
-
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Mejor Hora</p>
-
-            <div className="text-2xl font-bold text-white">8:00 PM</div>
-
-            <p className="text-xs text-slate-400 mt-2">Pico de conversiones</p>
-          </div>
-
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Crecimiento</p>
-
-            <div className="text-2xl font-bold text-emerald-400">+18.4%</div>
-
-            <p className="text-xs text-slate-400 mt-2">vs período anterior</p>
-          </div>
-
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Forecast</p>
-
-            <div className="text-2xl font-bold text-blue-400">$42M</div>
-
-            <p className="text-xs text-slate-400 mt-2">Proyección mensual</p>
-          </div>
-        </div>
-
-        {/* PERFORMANCE PANELS */}
-        <div className="grid gap-6 xl:grid-cols-2">
-          {/* WEEK PERFORMANCE */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">
-                  Rendimiento Semanal
-                </h3>
-
-                <p className="text-xs text-slate-400 mt-1">
-                  Actividad comercial por día
-                </p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {[
-                { day: "Lunes", value: 45 },
-                { day: "Martes", value: 52 },
-                { day: "Miércoles", value: 61 },
-                { day: "Jueves", value: 73 },
-                { day: "Viernes", value: 100 },
-                { day: "Sábado", value: 88 },
-                { day: "Domingo", value: 38 },
-              ].map((item) => (
-                <div key={item.day}>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm text-slate-300">{item.day}</span>
+            {/* FINANCIAL KPI */}
+            <div className="mt-8">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-emerald-500/10 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">Flujo Neto</p>
 
-                    <span className="text-sm text-white font-semibold">
-                      {item.value}%
-                    </span>
+                  <div className="text-3xl font-bold text-emerald-400">
+                    {formatCurrency(summary.totalProfit)}
                   </div>
 
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-blue-500"
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
+                  <p className="text-xs text-emerald-300 mt-2">
+                    Liquidez actual
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* PERFORMANCE INSIGHTS */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">
-                  Insights Inteligentes
-                </h3>
+                <div className="rounded-2xl border border-orange-500/10 bg-gradient-to-br from-orange-500/10 to-orange-500/5 p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">
+                    Costos Operativos
+                  </p>
 
-                <p className="text-xs text-slate-400 mt-1">
-                  Detección automática de patrones
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-emerald-500/10
-                    bg-emerald-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  ↑ Incremento de Ventas
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Las ventas aumentaron significativamente los fines de semana.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-blue-500/10
-                    bg-blue-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  💳 Método Más Rentable
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Las transferencias bancarias generan menor costo operativo.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-orange-500/10
-                    bg-orange-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  ⚠ Costos Elevados
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  MercadoLibre presenta incremento en comisiones este período.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-pink-500/10
-                    bg-pink-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  📈 Tendencia Detectada
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Componentes gaming muestran crecimiento acelerado.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* FINANCIAL ANALYTICS */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Financial Analytics
-            </h2>
-
-            <p className="text-sm text-slate-400">
-              Flujo financiero, costos y rentabilidad del negocio
-            </p>
-          </div>
-        </div>
-
-        {/* FINANCIAL KPI */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
-          {/* CASH FLOW */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-emerald-500/10
-            bg-gradient-to-br
-            from-emerald-500/10
-            to-emerald-500/5
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Flujo Neto</p>
-
-            <div className="text-3xl font-bold text-emerald-400">$18.2M</div>
-
-            <p className="text-xs text-emerald-300 mt-2">↑ Liquidez positiva</p>
-          </div>
-
-          {/* OPERATING COST */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-orange-500/10
-            bg-gradient-to-br
-            from-orange-500/10
-            to-orange-500/5
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Costos Operativos</p>
-
-            <div className="text-3xl font-bold text-orange-400">22%</div>
-
-            <p className="text-xs text-slate-400 mt-2">del ingreso total</p>
-          </div>
-
-          {/* TAX IMPACT */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-red-500/10
-            bg-gradient-to-br
-            from-red-500/10
-            to-red-500/5
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">Impacto Tributario</p>
-
-            <div className="text-3xl font-bold text-red-400">$3.1M</div>
-
-            <p className="text-xs text-slate-400 mt-2">
-              impuestos y retenciones
-            </p>
-          </div>
-
-          {/* ROI */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-blue-500/10
-            bg-gradient-to-br
-            from-blue-500/10
-            to-blue-500/5
-            p-5
-            shadow-lg
-        "
-          >
-            <p className="text-sm text-slate-400 mb-2">ROI Estimado</p>
-
-            <div className="text-3xl font-bold text-blue-400">31%</div>
-
-            <p className="text-xs text-slate-400 mt-2">
-              retorno sobre inversión
-            </p>
-          </div>
-        </div>
-
-        {/* FINANCIAL PANELS */}
-        <div className="grid gap-6 xl:grid-cols-2">
-          {/* COST STRUCTURE */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">
-                  Estructura de Costos
-                </h3>
-
-                <p className="text-xs text-slate-400 mt-1">
-                  Distribución financiera
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              {[
-                {
-                  label: "Inventario / COGS",
-                  value: 48,
-                  amount: "$38M",
-                  color: "bg-blue-500",
-                },
-                {
-                  label: "Comisiones",
-                  value: 16,
-                  amount: "$12M",
-                  color: "bg-pink-500",
-                },
-                {
-                  label: "Envíos",
-                  value: 11,
-                  amount: "$8M",
-                  color: "bg-orange-500",
-                },
-                {
-                  label: "Marketing",
-                  value: 14,
-                  amount: "$10M",
-                  color: "bg-emerald-500",
-                },
-                {
-                  label: "Operación",
-                  value: 9,
-                  amount: "$6M",
-                  color: "bg-cyan-500",
-                },
-              ].map((item) => (
-                <div key={item.label}>
-                  <div className="flex justify-between mb-2">
-                    <div>
-                      <p className="text-sm text-white font-medium">
-                        {item.label}
-                      </p>
-
-                      <p className="text-xs text-slate-400">
-                        {item.value}% del total
-                      </p>
-                    </div>
-
-                    <div className="text-sm font-bold text-white">
-                      {item.amount}
-                    </div>
+                  <div className="text-3xl font-bold text-orange-400">
+                    {operatingCostPct}%
                   </div>
 
-                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${item.color}`}
-                      style={{ width: `${item.value}%` }}
-                    />
-                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    del ingreso total
+                  </p>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* FINANCIAL INSIGHTS */}
-          <div
-            className="
-            rounded-2xl
-            border
-            border-white/5
-            bg-[#111827]
-            p-6
-            shadow-lg
-        "
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="font-semibold text-white">
-                  Insights Financieros
-                </h3>
+                <div className="rounded-2xl border border-red-500/10 bg-gradient-to-br from-red-500/10 to-red-500/5 p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">
+                    Impacto Tributario
+                  </p>
 
-                <p className="text-xs text-slate-400 mt-1">
-                  Alertas y patrones detectados
-                </p>
+                  <div className="text-3xl font-bold text-red-400">
+                    {formatCurrency(taxImpact)}
+                  </div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    impuestos y retenciones
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-blue-500/10 bg-gradient-to-br from-blue-500/10 to-blue-500/5 p-5 shadow-lg">
+                  <p className="text-sm text-slate-400 mb-2">ROI Estimado</p>
+
+                  <div className="text-3xl font-bold text-blue-400">{roi}%</div>
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    retorno sobre inversión
+                  </p>
+                </div>
               </div>
             </div>
-
-            <div className="space-y-4">
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-emerald-500/10
-                    bg-emerald-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  ↑ Rentabilidad Saludable
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  El margen neto se mantiene estable sobre el objetivo esperado.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-red-500/10
-                    bg-red-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  ⚠ Comisiones Elevadas
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  MercadoLibre consume una parte significativa del margen.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-blue-500/10
-                    bg-blue-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  💰 Flujo Positivo
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  La liquidez actual permite expansión operativa.
-                </p>
-              </div>
-
-              <div
-                className="
-                    rounded-xl
-                    border
-                    border-orange-500/10
-                    bg-orange-500/5
-                    p-4
-                "
-              >
-                <p className="text-sm font-medium text-white mb-1">
-                  📉 Optimización Recomendada
-                </p>
-
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Reducir costos logísticos podría aumentar el margen neto.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+          </>
+        );
+      })()}
 
       {/* DETAILED TRANSACTIONS TABLE */}
       <div className="mt-8">
