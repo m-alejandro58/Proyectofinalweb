@@ -123,7 +123,7 @@ export function ReportsCharts({
               <BarChart
                 data={salesByPlatform}
                 layout="vertical"
-                margin={{ left: 20 }}
+                margin={{ left: 60 }}
               >
                 <XAxis type="number" hide />
 
