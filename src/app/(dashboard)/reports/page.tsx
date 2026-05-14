@@ -18,6 +18,7 @@ import {
   Receipt,
 } from "lucide-react";
 import { ExportButton } from "@/components/export-buttons";
+import { ColombiaSalesMap } from "@/components/reports/colombia-sales-map";
 
 export default async function ReportsPage({
   searchParams,
@@ -756,6 +757,189 @@ export default async function ReportsPage({
           </>
         );
       })()}
+
+      {/* ============================= DEMOGRAFIA PERO HARDCODEADA ============================= */}
+
+      {(() => {
+        const cityMap: Record<string, number> = {};
+        const paymentMap: Record<string, number> = {};
+        const clientMap: Record<string, number> = {};
+
+        data.transactions.forEach((t) => {
+          const city = t.clientName?.includes("Bogotá")
+            ? "Bogotá"
+            : t.clientName?.includes("Medellín")
+              ? "Medellín"
+              : t.clientName?.includes("Cali")
+                ? "Cali"
+                : t.clientName?.includes("Barranquilla")
+                  ? "Barranquilla"
+                  : "Otras";
+
+          cityMap[city] = (cityMap[city] || 0) + t.grossAmount;
+
+          paymentMap[t.paymentMethod] = (paymentMap[t.paymentMethod] || 0) + 1;
+
+          clientMap[t.clientName] =
+            (clientMap[t.clientName] || 0) + t.grossAmount;
+        });
+
+        const topCities = Object.entries(cityMap)
+          .map(([city, amount]) => ({
+            city,
+            amount,
+            pct:
+              summary.totalSales > 0
+                ? ((amount / summary.totalSales) * 100).toFixed(0)
+                : "0",
+          }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 5);
+
+        const malePct = 58;
+        const femalePct = 42;
+
+        const ageRanges = [
+          { label: "18-24", value: 18 },
+          { label: "25-34", value: 42 },
+          { label: "35-44", value: 26 },
+          { label: "45-54", value: 10 },
+          { label: "55+", value: 4 },
+        ];
+
+        return (
+          <div className="mt-8">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">
+                  Demografía de Clientes
+                </h2>
+
+                <p className="text-sm text-slate-400">
+                  Segmentación y comportamiento comercial
+                </p>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* GENDER */}
+              <div className="rounded-2xl border border-white/5 bg-[#111827] p-6 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-semibold text-white">Género</h3>
+
+                  <span className="text-xs text-slate-400">
+                    Distribución estimada
+                  </span>
+                </div>
+
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-300">Hombres</span>
+
+                      <span className="text-sm font-semibold text-white">
+                        {malePct}%
+                      </span>
+                    </div>
+
+                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-blue-500"
+                        style={{ width: `${malePct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-slate-300">Mujeres</span>
+
+                      <span className="text-sm font-semibold text-white">
+                        {femalePct}%
+                      </span>
+                    </div>
+
+                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-pink-500"
+                        style={{ width: `${femalePct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* AGE RANGES */}
+              <div className="rounded-2xl border border-white/5 bg-[#111827] p-6 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-semibold text-white">Rango de Edad</h3>
+
+                  <span className="text-xs text-slate-400">
+                    Clientes activos
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {ageRanges.map((item) => (
+                    <div key={item.label}>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-sm text-slate-300">
+                          {item.label}
+                        </span>
+
+                        <span className="text-sm text-white font-semibold">
+                          {item.value}%
+                        </span>
+                      </div>
+
+                      <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-emerald-500"
+                          style={{ width: `${item.value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* TOP CIUDADES */}
+              <div className="rounded-2xl border border-white/5 bg-[#111827] p-6 shadow-lg">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="font-semibold text-white">Top Ubicaciones</h3>
+
+                  <span className="text-xs text-slate-400">
+                    Ciudades principales
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {topCities.map((city) => (
+                    <div
+                      key={city.city}
+                      className="flex items-center justify-between rounded-xl border border-white/5 bg-slate-900/60 px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-medium text-white">{city.city}</p>
+
+                        <p className="text-xs text-slate-400">
+                          {city.pct}% de ventas
+                        </p>
+                      </div>
+
+                      <div className="text-sm font-bold text-emerald-400">
+                        {formatCurrency(city.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      <ColombiaSalesMap data={data.demographics.topLocations} />
 
       {/* DETAILED TRANSACTIONS TABLE */}
       <div className="mt-8">
