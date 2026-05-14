@@ -142,6 +142,9 @@ export function ReportsCharts({
                     border: "1px solid #1e293b",
                     borderRadius: 12,
                   }}
+                  itemStyle={{
+                    color: "#22c55e",
+                  }}
                 />
 
                 <Bar dataKey="value" radius={[0, 8, 8, 0]}>

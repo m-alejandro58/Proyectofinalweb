@@ -106,28 +106,30 @@ export function ColombiaSalesMap({ data }: Props) {
           >
             <Geographies geography={geoUrl}>
               {({ geographies }: { geographies: any[] }) =>
-                geographies.map((geo: any) => (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill="#13233f"
-                    stroke="#475569"
-                    strokeWidth={0.7}
-                    style={{
-                      default: {
-                        outline: "none",
-                      },
-                      hover: {
-                        fill: "#1e3357",
-                        outline: "none",
-                        cursor: "pointer",
-                      },
-                      pressed: {
-                        outline: "none",
-                      },
-                    }}
-                  />
-                ))
+                geographies
+                  .filter((geo: any) => geo.properties?.name === "Colombia")
+                  .map((geo: any) => (
+                    <Geography
+                      key={geo.rsmKey}
+                      geography={geo}
+                      fill="#13233f"
+                      stroke="#475569"
+                      strokeWidth={0.7}
+                      style={{
+                        default: {
+                          outline: "none",
+                        },
+                        hover: {
+                          fill: "#1e3357",
+                          outline: "none",
+                          cursor: "pointer",
+                        },
+                        pressed: {
+                          outline: "none",
+                        },
+                      }}
+                    />
+                  ))
               }
             </Geographies>
 
