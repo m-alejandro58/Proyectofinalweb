@@ -1,5 +1,6 @@
 "use client";
 
+import { normalize } from "path";
 import {
   ComposableMap,
   Geographies,
@@ -8,8 +9,7 @@ import {
   ZoomableGroup,
 } from "react-simple-maps";
 
-const geoUrl =
-  "https://raw.githubusercontent.com/deldersveld/topojson/master/countries/colombia/colombia-departments.json";
+const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json";
 
 type Props = {
   data: {
@@ -132,11 +132,13 @@ export function ColombiaSalesMap({ data }: Props) {
             </Geographies>
 
             {data.map((location) => {
-              const coordinates = cityCoordinates[location.city];
+              const normalizedCity = location.city.split(",")[0].trim();
+
+              const coordinates = cityCoordinates[normalizedCity];
 
               if (!coordinates) return null;
 
-              const offset = cityOffsets[location.city] || {
+              const offset = cityOffsets[normalizedCity] || {
                 lng: 0,
                 lat: 0,
               };
@@ -203,22 +205,26 @@ export function ColombiaSalesMap({ data }: Props) {
 
       {/* CARDS */}
       <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {data.slice(0, 8).map((location) => (
-          <div
-            key={location.city}
-            className="rounded-2xl border border-slate-800 bg-[#07122b] p-5"
-          >
-            <p className="text-sm text-slate-400">{location.city}</p>
+        {data.slice(0, 8).map((location) => {
+          const normalizedCity = location.city.split(",")[0].trim();
 
-            <h3 className="mt-1 text-2xl font-bold text-white">
-              ${location.sales.toLocaleString("es-CO")}
-            </h3>
+          return (
+            <div
+              key={location.city}
+              className="rounded-2xl border border-slate-800 bg-[#07122b] p-5"
+            >
+              <p className="text-sm text-slate-400">{normalizedCity}</p>
 
-            <p className="mt-2 text-sm font-semibold text-emerald-400">
-              {location.percentage}% del total
-            </p>
-          </div>
-        ))}
+              <h3 className="mt-1 text-2xl font-bold text-white">
+                ${location.sales.toLocaleString("es-CO")}
+              </h3>
+
+              <p className="mt-2 text-sm font-semibold text-emerald-400">
+                {location.percentage}% del total
+              </p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
