@@ -546,6 +546,7 @@ model User {
   canManageClaims     Boolean @default(false) // Reclamaciones
   
   createdAt DateTime @default(now())
+  auditLogs AuditLog[]
 }
 
 // ---------------------------------------------------------
@@ -572,3 +573,28 @@ model FixedAsset {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
+
+// ---------------------------------------------------------
+// REGISTRO DE ACTIVIDAD (AUDIT TRAIL)
+// ---------------------------------------------------------
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  timestamp DateTime @default(now())
+  
+  userId    String?   // ID del usuario que realizó la acción
+  userIp    String?  // IP del usuario
+  userAgent String?  // User-Agent del navegador
+  
+  action    String   // Descripción de la acción (ej: "CREATE_PRODUCT", "UPDATE_CUSTOMER")
+  entity    String   // Entidad afectada (ej: "Customer", "Order", "Product")
+  entityId  String   // ID de la entidad afectada
+  
+  oldValues String?  // JSON con valores anteriores (opcional)
+  newValues String?  // JSON con nuevos valores (opcional)
+  
+  metadata  String?  // JSON extra con detalles adicionales
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
