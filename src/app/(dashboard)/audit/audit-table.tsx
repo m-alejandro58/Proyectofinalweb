@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 
 // ---------------------------------------------------------
 // BADGE DE ACCIÓN
@@ -11,12 +11,14 @@ function ActionBadge({ action }: { action: string }) {
         CREATE_PRODUCT: "bg-green-100 text-green-800 border border-green-200",
         UPDATE_PRODUCT: "bg-blue-100 text-blue-800 border border-blue-200",
         DELETE_PRODUCT: "bg-red-100 text-red-800 border border-red-200",
+        ADJUST_STOCK:   "bg-yellow-100 text-yellow-800 border border-yellow-200",
     }
 
     const labels: Record<string, string> = {
         CREATE_PRODUCT: "Creación",
         UPDATE_PRODUCT: "Actualización",
         DELETE_PRODUCT: "Eliminación",
+        ADJUST_STOCK:   "Ajuste de stock",
     }
 
     const style = styles[action] ?? "bg-gray-100 text-gray-800 border border-gray-200"
@@ -201,9 +203,8 @@ export function AuditTable({ logs }: { logs: any[] }) {
                             </tr>
                         ) : (
                             filtered.map((log: any) => (
-                                <>
+                                <React.Fragment key={log.id}>
                                     <tr
-                                        key={log.id}
                                         className="border-t hover:bg-muted/40 transition-colors cursor-pointer"
                                         onClick={() => toggle(log.id)}
                                     >
@@ -233,14 +234,14 @@ export function AuditTable({ logs }: { logs: any[] }) {
                                     </tr>
 
                                     {expandedId === log.id && (
-                                        <tr key={`${log.id}-detail`} className="bg-muted/20 border-t">
+                                        <tr className="bg-muted/20 border-t">
                                             <td colSpan={5} className="p-4">
                                                 <ValuesDetail label="Antes" values={log.oldValues} />
                                                 <ValuesDetail label="Después" values={log.newValues} />
                                             </td>
                                         </tr>
                                     )}
-                                </>
+                                </React.Fragment>
                             ))
                         )}
                     </tbody>

@@ -314,6 +314,30 @@ export async function adjustProductStock(
             })
         })
 
+        // ---------------------------------------------------------
+        // REGISTRO DE AUDITORÍA
+        // ---------------------------------------------------------
+
+        await createAuditLog({
+            action: "ADJUST_STOCK",
+            entity: "Product",
+            entityId: productId,
+
+            oldValues: {
+                stockTotal: product.stockTotal,
+            },
+
+            newValues: {
+                stockTotal: newQuantity,
+                unitCost: newUnitCost,
+            },
+
+            metadata: {
+                reason,
+                adjustedAt: new Date()
+            }
+        })
+        
         revalidatePath('/inventory')
         return { success: true }
     } catch (e) {
