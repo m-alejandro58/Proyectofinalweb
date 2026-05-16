@@ -72,3 +72,30 @@ export async function createAuditLog({
     console.error("Error al registrar auditoría:", error)
   }
 }
+
+// ---------------------------------------------------------
+// OBTENER REGISTROS DE AUDITORÍA
+// ---------------------------------------------------------
+
+export async function getAuditLogs() {
+    try {
+        const logs = await prisma.auditLog.findMany({
+            orderBy: {
+                timestamp: "desc"
+            }
+        })
+
+        return {
+            success: true,
+            data: logs
+        }
+
+    } catch (error) {
+        console.error("Error obteniendo logs:", error)
+
+        return {
+            success: false,
+            error: "No se pudieron obtener los registros"
+        }
+    }
+}
