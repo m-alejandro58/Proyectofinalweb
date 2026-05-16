@@ -168,8 +168,23 @@ export async function updateProduct(id: string, formData: FormData) {
         }
     }
 
+    // ---------------------------------------------------------
+    // OBTENER DATOS ANTERIORES DEL PRODUCTO
+    // ---------------------------------------------------------
+
+    const existingProduct = await prisma.product.findUnique({
+        where: { id }
+    })
+
+    if (!existingProduct) {
+        return {
+            success: false,
+            error: "Producto no encontrado"
+        }
+    }
+
     try {
-        await prisma.product.update({
+        const updatedProduct = await prisma.product.update({
             where: { id },
             data: {
                 name,
@@ -186,6 +201,33 @@ export async function updateProduct(id: string, formData: FormData) {
                 length,
             } as any
         })
+        // ---------------------------------------------------------
+// REGISTRO DE AUDITORÍA
+// ---------------------------------------------------------
+
+await createAuditLog({
+    action: "UPDATE_PRODUCT",
+    entity: "Product",
+    entityId: updatedProduct.id,
+
+    oldValues: {
+        name: existingProduct.name,
+        sku: existingProduct.sku,
+        stockTotal: existingProduct.stockTotal,
+        brand: existingProduct.brand,
+    },
+
+    newValues: {
+        name: updatedProduct.name,
+        sku: updatedProduct.sku,
+        stockTotal: updatedProduct.stockTotal,
+        brand: updatedProduct.brand,
+    },
+
+    metadata: {
+        updatedAt: new Date()
+    }
+})
 
         revalidatePath('/inventory')
         return { success: true }
