@@ -338,6 +338,29 @@ export async function deleteProduct(id: string) {
             return { success: false, error: "No se puede eliminar: El producto tiene historial de compras/inventario. Considere 'Archivarlo' (funcionalidad pendiente) o contacte a soporte." }
         }
 
+    // ---------------------------------------------------------
+    // REGISTRO DE AUDITORÍA
+    // ---------------------------------------------------------
+
+        await createAuditLog({
+            action: "DELETE_PRODUCT",
+            entity: "Product",
+            entityId: product.id,
+
+            oldValues: {
+                name: product.name,
+                sku: product.sku,
+                stockTotal: product.stockTotal,
+                brand: product.brand,
+                category: product.category,
+                subcategory: product.subcategory,
+            },
+
+            metadata: {
+                deletedAt: new Date()
+            }
+        })
+        
         await prisma.product.delete({ where: { id } })
 
         revalidatePath('/inventory')
