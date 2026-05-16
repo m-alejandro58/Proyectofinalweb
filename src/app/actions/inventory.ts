@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireAuth } from "@/lib/auth-guard"
+import {createAuditLog} from "@/lib/audit"
 
 export async function createProduct(formData: FormData) {
     await requireAuth()
@@ -64,6 +65,29 @@ export async function createProduct(formData: FormData) {
                 }
             })
         }
+        // ---------------------------------------------------------
+        // REGISTRO DE AUDITORÍA
+        // ---------------------------------------------------------
+
+        await createAuditLog({
+            action: "CREATE_PRODUCT",
+            entity: "Product",
+            entityId: product.id,
+
+            newValues: {
+                name: product.name,
+                sku: product.sku,
+                category: product.category,
+                subcategory: product.subcategory,
+                stockTotal: product.stockTotal,
+            },
+
+            metadata: {
+                hasInitialStock,
+                initialQuantity,
+                unitCost,
+            }
+        })
 
         revalidatePath('/inventory')
         return { success: true, data: product }
