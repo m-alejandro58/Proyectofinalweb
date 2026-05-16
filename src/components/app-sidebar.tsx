@@ -14,7 +14,8 @@ import {
     ShieldAlert,
     Warehouse,
     Settings,
-    Building2
+    Building2,
+    ScrollText
 } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -115,6 +116,15 @@ export function AppSidebar() {
                                         <a href="/admin" className="flex items-center gap-3 py-3">
                                             <Settings className="h-5 w-5" />
                                             <span className="text-base">Gestión de Usuarios</span>
+                                        </a>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                                
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton asChild>
+                                        <a href="/audit" className="flex items-center gap-3 py-3">
+                                            <ScrollText className="h-5 w-5" />
+                                            <span className="text-base">Auditoría</span>
                                         </a>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
