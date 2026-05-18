@@ -82,6 +82,14 @@ export async function getAuditLogs() {
         const logs = await prisma.auditLog.findMany({
             orderBy: {
                 timestamp: "desc"
+            },
+            include: {
+                user: {
+                    select: {
+                        name: true,
+                        username: true,
+                    }
+                }
             }
         })
 

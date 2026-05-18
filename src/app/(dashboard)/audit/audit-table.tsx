@@ -67,20 +67,17 @@ function ValuesDetail({ label, values }: { label: string, values: string | null 
 export function AuditTable({ logs }: { logs: any[] }) {
     const [expandedId, setExpandedId] = useState<string | null>(null)
 
-    // Filtros
     const [filterAction, setFilterAction] = useState("")
     const [filterEntity, setFilterEntity] = useState("")
     const [filterFrom, setFilterFrom] = useState("")
     const [filterTo, setFilterTo] = useState("")
 
-    // Opciones únicas para los selects
     const uniqueActions = useMemo(() =>
         Array.from(new Set(logs.map(l => l.action))), [logs])
 
     const uniqueEntities = useMemo(() =>
         Array.from(new Set(logs.map(l => l.entity))), [logs])
 
-    // Logs filtrados
     const filtered = useMemo(() => {
         return logs.filter(log => {
             if (filterAction && log.action !== filterAction) return false
@@ -221,7 +218,7 @@ export function AuditTable({ logs }: { logs: any[] }) {
                                         </td>
 
                                         <td className="p-3 text-muted-foreground">
-                                            {log.userId || "Sistema"}
+                                            {log.user?.name || log.user?.username || "Sistema"}
                                         </td>
 
                                         <td className="p-3 text-muted-foreground">
