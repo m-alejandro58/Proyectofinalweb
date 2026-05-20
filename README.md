@@ -23,7 +23,7 @@ El proyecto permite administrar productos, controlar inventario, registrar movim
 - TailwindCSS
 
 ## Backend
-- Next.js
+- Node.js
 - Server Actions
 - Prisma ORM
 
